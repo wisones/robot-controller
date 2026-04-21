@@ -87,8 +87,8 @@ sniffio @ file:///C:/miniconda3/conda-bld/sniffio_1764329222593/work
 threadpoolctl==3.6.0
 tomli @ file:///C:/Users/task_176829653470725/croot/tomli_1768296655778/work
 tomlkit @ file:///C:/miniconda3/conda-bld/tomlkit_1762896656167/work
-tqdm @ file:///C:/Users/task_177139862118811/croot/tqdm_1771398768256/work
-truststore @ file:///C:/miniconda3/conda-bld/truststore_1762521027919/work
+tqdm
+truststore
 typer==0.20.0
 typer-slim==0.20.0
 typing-inspection
