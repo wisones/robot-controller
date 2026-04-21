@@ -91,9 +91,9 @@ tqdm @ file:///C:/Users/task_177139862118811/croot/tqdm_1771398768256/work
 truststore @ file:///C:/miniconda3/conda-bld/truststore_1762521027919/work
 typer==0.20.0
 typer-slim==0.20.0
-typing-inspection @ file:///C:/miniconda3/conda-bld/typing-inspection_1760614188477/work
-typing_extensions @ file:///C:/b/abs_ecq8gc0vbm/croot/typing_extensions_1756281142218/work
-tzdata @ file:///home/task_176829656558347/croot/python-tzdata_1768296637279/work
+typing-inspection
+typing_extensions
+tzdata
 urllib3
 wheel==0.46.3
 win_inet_pton
