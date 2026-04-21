@@ -9,8 +9,7 @@ brotlicffi @ file:///C:/miniconda3/conda-bld/brotlicffi_1764961374486/work
 certifi @ file:///C:/Users/task_176765924055489/croot/certifi_1767659363027/work/certifi
 cffi @ file:///C:/miniconda3/conda-bld/cffi_1761832792955/work
 charset-normalizer @ file:///C:/miniconda3/conda-bld/charset-normalizer_1761744975868/work
-click @ file:///C:/miniconda3/conda-bld/click_1764332372183/work
-colorama @ file:///C:/Users/dev-admin/perseverance-python-buildout/croot/colorama_1729036581634/work
+click
 conda @ file:///C:/Users/task_177140157604822/croot/conda_1771402255672/work/conda-src
 conda-anaconda-telemetry @ file:///croot/conda-anaconda-telemetry_1755883788794/work
 conda-anaconda-tos @ file:///C:/b/abs_c9yejtsx9g/croot/conda-anaconda-tos_1755123332641/work
