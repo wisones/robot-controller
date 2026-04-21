@@ -94,7 +94,7 @@ typer-slim==0.20.0
 typing-inspection @ file:///C:/miniconda3/conda-bld/typing-inspection_1760614188477/work
 typing_extensions @ file:///C:/b/abs_ecq8gc0vbm/croot/typing_extensions_1756281142218/work
 tzdata @ file:///home/task_176829656558347/croot/python-tzdata_1768296637279/work
-urllib3 @ file:///C:/Users/task_176781035981662/croot/urllib3_1767810483132/work
+urllib3
 wheel==0.46.3
-win_inet_pton @ file:///C:/miniconda3/conda-bld/win_inet_pton_1761746278300/work
-zstandard @ file:///C:/miniconda3/conda-bld/zstandard_1758189089298/work
+win_inet_pton
+zstandard
