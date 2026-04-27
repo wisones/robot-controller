@@ -10,9 +10,9 @@ certifi @ file:///C:/Users/task_176765924055489/croot/certifi_1767659363027/work
 cffi @ file:///C:/miniconda3/conda-bld/cffi_1761832792955/work
 charset-normalizer @ file:///C:/miniconda3/conda-bld/charset-normalizer_1761744975868/work
 click
-conda @ file:///C:/Users/task_177140157604822/croot/conda_1771402255672/work/conda-src
-conda-anaconda-telemetry @ file:///croot/conda-anaconda-telemetry_1755883788794/work
-conda-anaconda-tos @ file:///C:/b/abs_c9yejtsx9g/croot/conda-anaconda-tos_1755123332641/work
+conda
+conda-anaconda-telemetry
+conda-anaconda-tos 
 conda-content-trust @ file:///C:/Users/dev-admin/perseverance-python-buildout/croot/conda-content-trust_1729088072778/work
 conda-libmamba-solver @ file:///C:/miniconda3/conda-bld/conda-libmamba-solver_1764245615235/work/src
 conda-package-handling @ file:///C:/miniconda3/conda-bld/conda-package-handling_1762366515145/work
