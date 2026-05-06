@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 from map_widget import MapWidget
 from tcp_client import RobotTCPClient
+from spray_controller import SprayController
 import base64
 import struct
 
@@ -20,10 +21,11 @@ class MainWindow(QMainWindow):
         self.map_meta = None
         self.current_map_name = ""
 
-        self.goal_points = []           # 用户点击的原始目标点 (wx, wy)
-        self.navi_queue = []            # 带朝向的目标点队列 (wx, wy, theta)
+        self.goal_points = []
+        self.navi_queue = []
         self.current_navi_index = 0
-        self.nav_state = 'idle'         # 'idle' 或 'navigating'
+        self.nav_state = 'idle'
+        self.fail_count = 0
 
         self.robot_x = 0.0
         self.robot_y = 0.0
@@ -54,6 +56,11 @@ class MainWindow(QMainWindow):
         self.tcp_client = RobotTCPClient()
         self.init_tcp_signals()
         self.init_ui_connections()
+
+        # 喷雾控制器
+        self.spray_controller = SprayController(esp_ip="192.168.10.200")
+        self.spray_controller.connection_error.connect(self.on_spray_error)
+        self.spray_controller.voltage_updated.connect(self.on_voltage_updated)
 
         self.edit_ip.setText("192.168.10.159")
         self.edit_port.setText("10000")
@@ -142,7 +149,9 @@ class MainWindow(QMainWindow):
         status_layout = QVBoxLayout(status_group)
         self.label_conn_status = QLabel("未连接")
         self.label_conn_status.setStyleSheet("color: orange; font-weight: bold;")
+        self.voltage_label = QLabel("电池电压: --- V")
         status_layout.addWidget(self.label_conn_status)
+        status_layout.addWidget(self.voltage_label)
 
         layout.addWidget(conn_group)
         layout.addWidget(map_group)
@@ -267,7 +276,7 @@ class MainWindow(QMainWindow):
     def on_show_pose(self):
         self.status_bar.showMessage("位置实时显示中")
 
-    # ───────────── 目标点 / 导航 ─────────────
+    # ───────────── 导航 ─────────────
     def on_add_goal_toggled(self, checked: bool):
         if checked:
             self.status_bar.showMessage("在地图上点击添加目标点")
@@ -318,7 +327,6 @@ class MainWindow(QMainWindow):
             self.status_bar.showMessage("导航已在运行中")
             return
 
-        # 构建带朝向的目标点队列
         self.navi_queue = []
         for i, (wx, wy) in enumerate(self.goal_points):
             if i + 1 < len(self.goal_points):
@@ -338,11 +346,16 @@ class MainWindow(QMainWindow):
 
         self.current_navi_index = 0
         self.nav_state = 'navigating'
+        self.fail_count = 0
         self.tcp_client.send_command({"CMD": "CMD_SUB_NAVI"})
         self._send_next_goal()
 
     def _send_next_goal(self):
         if self.current_navi_index >= len(self.navi_queue):
+            self._finish_navigation()
+            return
+        if self.fail_count > len(self.navi_queue):
+            self.status_bar.showMessage("连续导航失败次数过多，终止")
             self._finish_navigation()
             return
         wx, wy, theta = self.navi_queue[self.current_navi_index]
@@ -354,12 +367,13 @@ class MainWindow(QMainWindow):
         }
         self.tcp_client.send_command(cmd)
         self.status_bar.showMessage(
-            f"前往目标点 {self.current_navi_index+1}/{len(self.navi_queue)} 朝向 {math.degrees(theta):.0f}°")
+            f"前往目标点 {self.current_navi_index+1}/{len(self.navi_queue)}")
 
     def _finish_navigation(self):
         self.nav_state = 'idle'
         self.navi_queue.clear()
         self.current_navi_index = 0
+        self.fail_count = 0
         self.status_bar.showMessage("顺序导航完成")
 
     def on_navi_received(self, data: dict):
@@ -368,12 +382,19 @@ class MainWindow(QMainWindow):
         navi_info = data.get("NAVI_INFO", {})
         status = navi_info.get("TASK_STATUS", "")
         if status == "COMPLETED":
+            self.fail_count = 0
             self.current_navi_index += 1
             self._send_next_goal()
-        elif status in ("CANCELLED", "NAV_FAIL"):
-            self.status_bar.showMessage(f"导航异常 (状态: {status})")
+        elif status == "NAV_FAIL":
+            self.fail_count += 1
+            self.status_bar.showMessage(f"目标点 {self.current_navi_index+1} 失败，跳过")
+            self.current_navi_index += 1
+            self._send_next_goal()
+        elif status == "CANCELLED":
+            self.status_bar.showMessage("导航被取消")
             self.nav_state = 'idle'
             self.navi_queue.clear()
+            self.fail_count = 0
 
     def on_cancel_navi(self):
         if self.nav_state != 'idle':
@@ -381,6 +402,7 @@ class MainWindow(QMainWindow):
         self.nav_state = 'idle'
         self.navi_queue.clear()
         self.current_navi_index = 0
+        self.fail_count = 0
         self.status_bar.showMessage("导航已取消")
 
     # ───────────── 连接 / Ping ─────────────
@@ -402,8 +424,12 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage("Ping 测试中...")
         self.tcp_client.send_command({"CMD": "CMD_GET_VERSION"})
 
-    # ───────────── 喷雾占位 ─────────────
-    def on_spray_left_on(self): print("左侧喷雾 开启")
-    def on_spray_left_off(self): print("左侧喷雾 关闭")
-    def on_spray_right_on(self): print("右侧喷雾 开启")
-    def on_spray_right_off(self): print("右侧喷雾 关闭")
+    # ───────────── 喷雾 ─────────────
+    def on_spray_left_on(self):   self.spray_controller.left_on()
+    def on_spray_left_off(self):  self.spray_controller.left_off()
+    def on_spray_right_on(self):  self.spray_controller.right_on()
+    def on_spray_right_off(self): self.spray_controller.right_off()
+    def on_spray_error(self, msg: str):
+        self.status_bar.showMessage(f"喷雾错误: {msg}")
+    def on_voltage_updated(self, volt: float):
+        self.voltage_label.setText(f"电池电压: {volt:.1f} V")
