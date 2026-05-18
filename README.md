@@ -5,7 +5,9 @@
 
 #### 软件架构
 python 
-qt5
+pyqt5
+socket
+
 
 
 #### 参与
@@ -21,9 +23,9 @@ qt5
 
 ## 2. 硬件组成
 - **机器人底盘**：智科云导航底盘（IP：`192.168.10.159`，端口：`10000`），提供 TCP 协议接口。
-- **喷雾执行**：12V 电机泵 ×2、药箱、XY-MOS 功率 MOS 模块 ×2、12V 锂电池。
-- **无线控制**：ESP8266 (NodeMCU) 连接到底盘 WiFi 热点，驱动两路 MOS 模块。
-- **操作电脑**：Windows 笔记本，连接底盘热点，运行 Python/PyQt5 控制程序。
+- **喷雾执行**：12V 电机泵 ×2、药箱 x2、XY-MOS 功率模块 ×2、12V 锂电池 x2、可充电锂离子电池5v输出。
+- **无线控制**：ESP8266 (NodeMCU，自带WIFI模块) 连接到底盘 AP热点，驱动两路 MOS 模块，进而水泵开关。
+- **操作电脑**：Windows 笔记本(或触摸工控机、台式机），连接底盘AP热点，运行 Python/PyQt5 控制程序。
 
 ## 3. 软件架构
 robot-controller/
@@ -33,7 +35,6 @@ robot-controller/
 │ ├── map_widget.py # 自定义地图控件（绘制地图、点云、机器人、目标点）
 │ ├── tcp_client.py # 底盘 TCP 通信（封包/解包/心跳/信号分发）
 │ └── spray_controller.py # 喷雾控制器（TCP 客户端，通过 ESP8266 控制）
-├── venv/ 或 robot_env # Python 虚拟环境
 ├── test.py / test_rotate.py # 调试用临时脚本
 └── README.md # 本文件
 
