@@ -1,16 +1,17 @@
 # src/main_window.py
-import math
+import math, time
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QGroupBox, QLabel, QStatusBar, QSplitter,
     QLineEdit, QFormLayout
 )
-from PyQt5.QtCore import Qt
 from map_widget import MapWidget
 from tcp_client import RobotTCPClient
 from spray_controller import SprayController
 import base64
 import struct
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -18,19 +19,27 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("智科云机器人控制终端")
         self.setMinimumSize(1000, 700)
 
+        # ---------- 地图元数据 ----------
         self.map_meta = None
         self.current_map_name = ""
 
+        # ---------- 目标点 & 导航 ----------
         self.goal_points = []
         self.navi_queue = []
         self.current_navi_index = 0
-        self.nav_state = 'idle'
+        self.nav_state = 'idle'         # 'idle' / 'navigating'
         self.fail_count = 0
 
+        # ---------- 机器人位姿 & 速度 ----------
         self.robot_x = 0.0
         self.robot_y = 0.0
         self.latest_theta = 0.0
+        self.last_pose_time = None
+        self.last_pose_x = None
+        self.last_pose_y = None
+        self.current_speed = 0.0
 
+        # ---------- 主界面 ----------
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QHBoxLayout(central_widget)
@@ -49,29 +58,47 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(splitter)
 
+        # ---------- 状态栏 ----------
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("就绪 | 未连接机器人")
 
+        # ---------- 通信对象 ----------
         self.tcp_client = RobotTCPClient()
-        self.init_tcp_signals()
-        self.init_ui_connections()
 
-        # 喷雾控制器
+        # ⚠️ 提前创建喷雾控制器，以便 init_ui_connections 可以绑定
         self.spray_controller = SprayController(esp_ip="192.168.10.200")
         self.spray_controller.connection_error.connect(self.on_spray_error)
-        self.spray_controller.voltage_updated.connect(self.on_voltage_updated)
+        self.spray_controller.status_message.connect(self.on_spray_status)
+        self.spray_controller.left_water_updated.connect(self.on_left_water_updated)
+        self.spray_controller.right_water_updated.connect(self.on_right_water_updated)
 
+        self.init_tcp_signals()
+        self.init_ui_connections()          # 现在可以安全绑定按钮
+
+        # ---------- 定时查询底盘电量 ----------
+        self.battery_timer = QTimer(self)
+        self.battery_timer.timeout.connect(self._query_battery)
+        self.battery_timer.start(30000)     # 每 30 秒
+
+        # 默认 IP / 端口
         self.edit_ip.setText("192.168.10.159")
         self.edit_port.setText("10000")
 
-    # ───────────── UI 构建 ─────────────
+    def on_spray_status(self, msg: str):
+        self.status_bar.showMessage(msg)          # 直接显示在状态栏，无“喷雾错误”前缀
+    # ==================== 定时任务 ====================
+    def _query_battery(self):
+        if self.tcp_client.is_connected:
+            self.tcp_client.send_command({"CMD": "CMD_GET_BATTERY"})
+
+    # ==================== UI 布局 ====================
     def create_right_panel(self) -> QWidget:
         panel = QWidget()
         layout = QVBoxLayout(panel)
         layout.setSpacing(15)
 
-        # 底盘连接
+        # ---- 底盘连接 ----
         conn_group = QGroupBox("底盘连接")
         conn_layout = QFormLayout(conn_group)
         self.edit_ip = QLineEdit()
@@ -80,6 +107,7 @@ class MainWindow(QMainWindow):
         self.edit_port = QLineEdit()
         self.edit_port.setPlaceholderText("例如: 9090")
         conn_layout.addRow("端口:", self.edit_port)
+
         btn_conn_layout = QHBoxLayout()
         self.btn_connect = QPushButton("连接")
         self.btn_connect.setMinimumHeight(30)
@@ -89,7 +117,7 @@ class MainWindow(QMainWindow):
         btn_conn_layout.addWidget(self.btn_ping)
         conn_layout.addRow(btn_conn_layout)
 
-        # 地图控制
+        # ---- 地图控制 ----
         map_group = QGroupBox("地图控制")
         map_layout = QVBoxLayout(map_group)
         self.btn_get_map = QPushButton("获取静态地图")
@@ -104,7 +132,7 @@ class MainWindow(QMainWindow):
         map_layout.addWidget(self.btn_show_pose)
         map_group.setLayout(map_layout)
 
-        # 顺序导航
+        # ---- 顺序导航 ----
         navi_group = QGroupBox("顺序导航")
         navi_layout = QVBoxLayout(navi_group)
         self.btn_add_goal = QPushButton("添加目标点")
@@ -121,38 +149,84 @@ class MainWindow(QMainWindow):
         navi_layout.addWidget(self.btn_start_navi)
         navi_layout.addWidget(self.btn_cancel_navi)
 
-        # 喷雾控制
+        # ---- 左侧喷雾 + 水量 ----
         spray_left_group = QGroupBox("左侧喷雾")
-        spray_left_layout = QHBoxLayout(spray_left_group)
+        spray_left_layout = QVBoxLayout(spray_left_group)
+
+        btn_left_layout = QHBoxLayout()
         self.btn_spray_left_on = QPushButton("开启")
         self.btn_spray_left_on.setMinimumHeight(40)
-        self.btn_spray_left_on.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;")
+        self.btn_spray_left_on.setStyleSheet(
+            "background-color: #4CAF50; color: white; font-weight: bold;"
+        )
         self.btn_spray_left_off = QPushButton("关闭")
         self.btn_spray_left_off.setMinimumHeight(40)
-        self.btn_spray_left_off.setStyleSheet("background-color: #f44336; color: white; font-weight: bold;")
-        spray_left_layout.addWidget(self.btn_spray_left_on)
-        spray_left_layout.addWidget(self.btn_spray_left_off)
+        self.btn_spray_left_off.setStyleSheet(
+            "background-color: #f44336; color: white; font-weight: bold;"
+        )
+        btn_left_layout.addWidget(self.btn_spray_left_on)
+        btn_left_layout.addWidget(self.btn_spray_left_off)
 
+        self.left_water_label = QLabel("水量: --- %")
+        calib_left_layout = QHBoxLayout()
+        self.btn_left_tare = QPushButton("去皮")
+        self.btn_left_tare.setMaximumWidth(60)
+        self.btn_left_full = QPushButton("设满")
+        self.btn_left_full.setMaximumWidth(60)
+        calib_left_layout.addWidget(self.left_water_label)
+        calib_left_layout.addStretch()
+        calib_left_layout.addWidget(self.btn_left_tare)
+        calib_left_layout.addWidget(self.btn_left_full)
+
+        spray_left_layout.addLayout(btn_left_layout)
+        spray_left_layout.addLayout(calib_left_layout)
+
+        # ---- 右侧喷雾 + 水量 ----
         spray_right_group = QGroupBox("右侧喷雾")
-        spray_right_layout = QHBoxLayout(spray_right_group)
+        spray_right_layout = QVBoxLayout(spray_right_group)
+
+        btn_right_layout = QHBoxLayout()
         self.btn_spray_right_on = QPushButton("开启")
         self.btn_spray_right_on.setMinimumHeight(40)
-        self.btn_spray_right_on.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;")
+        self.btn_spray_right_on.setStyleSheet(
+            "background-color: #4CAF50; color: white; font-weight: bold;"
+        )
         self.btn_spray_right_off = QPushButton("关闭")
         self.btn_spray_right_off.setMinimumHeight(40)
-        self.btn_spray_right_off.setStyleSheet("background-color: #f44336; color: white; font-weight: bold;")
-        spray_right_layout.addWidget(self.btn_spray_right_on)
-        spray_right_layout.addWidget(self.btn_spray_right_off)
+        self.btn_spray_right_off.setStyleSheet(
+            "background-color: #f44336; color: white; font-weight: bold;"
+        )
+        btn_right_layout.addWidget(self.btn_spray_right_on)
+        btn_right_layout.addWidget(self.btn_spray_right_off)
 
-        # 连接状态
+        self.right_water_label = QLabel("水量: --- %")
+        calib_right_layout = QHBoxLayout()
+        self.btn_right_tare = QPushButton("去皮")
+        self.btn_right_tare.setMaximumWidth(60)
+        self.btn_right_full = QPushButton("设满")
+        self.btn_right_full.setMaximumWidth(60)
+        calib_right_layout.addWidget(self.right_water_label)
+        calib_right_layout.addStretch()
+        calib_right_layout.addWidget(self.btn_right_tare)
+        calib_right_layout.addWidget(self.btn_right_full)
+
+        spray_right_layout.addLayout(btn_right_layout)
+        spray_right_layout.addLayout(calib_right_layout)
+
+        # ---- 状态信息 ----
         status_group = QGroupBox("连接状态")
         status_layout = QVBoxLayout(status_group)
         self.label_conn_status = QLabel("未连接")
         self.label_conn_status.setStyleSheet("color: orange; font-weight: bold;")
-        self.voltage_label = QLabel("电池电压: --- V")
-        status_layout.addWidget(self.label_conn_status)
-        status_layout.addWidget(self.voltage_label)
 
+        self.speed_label = QLabel("运动速度: --- m/s")
+        self.battery_label = QLabel("电量: --- %")
+
+        status_layout.addWidget(self.label_conn_status)
+        status_layout.addWidget(self.speed_label)
+        status_layout.addWidget(self.battery_label)
+
+        # ---- 总体布局 ----
         layout.addWidget(conn_group)
         layout.addWidget(map_group)
         layout.addWidget(navi_group)
@@ -162,6 +236,7 @@ class MainWindow(QMainWindow):
         layout.addStretch()
         return panel
 
+    # ==================== 信号连接 ====================
     def init_ui_connections(self):
         self.btn_connect.clicked.connect(self.on_connect)
         self.btn_ping.clicked.connect(self.on_ping)
@@ -176,6 +251,11 @@ class MainWindow(QMainWindow):
         self.btn_spray_left_off.clicked.connect(self.on_spray_left_off)
         self.btn_spray_right_on.clicked.connect(self.on_spray_right_on)
         self.btn_spray_right_off.clicked.connect(self.on_spray_right_off)
+        # 校准按钮（现在 spray_controller 已存在）
+        self.btn_left_tare.clicked.connect(self.spray_controller.tare_left)
+        self.btn_left_full.clicked.connect(self.spray_controller.set_left_full)
+        self.btn_right_tare.clicked.connect(self.spray_controller.tare_right)
+        self.btn_right_full.clicked.connect(self.spray_controller.set_right_full)
 
     def init_tcp_signals(self):
         self.tcp_client.connected.connect(self.on_tcp_connected)
@@ -186,7 +266,7 @@ class MainWindow(QMainWindow):
         self.tcp_client.pose_received.connect(self.on_pose_received)
         self.tcp_client.navi_received.connect(self.on_navi_received)
 
-    # ───────────── TCP 回调 ─────────────
+    # ==================== TCP 状态回调 ====================
     def on_tcp_connected(self):
         self.label_conn_status.setText("已连接")
         self.label_conn_status.setStyleSheet("color: green; font-weight: bold;")
@@ -202,36 +282,53 @@ class MainWindow(QMainWindow):
         print(f"[TCP 错误] {err_msg}")
         self.status_bar.showMessage(f"错误: {err_msg}")
 
+    # ==================== 通用响应处理 ====================
     def on_response_received(self, data: dict):
         cmd = data.get("CMD", "")
+
         if cmd == "CMD_GET_VERSION":
             version = data.get("VERSION", "未知")
             self.status_bar.showMessage(f"版本: {version}")
+
         elif cmd == "CMD_GET_CURRENT_MAP_CONFIG":
             map_config = data.get("MAP_CURRENT_CONFIG", {})
             map_name = map_config.get("STATIC_MAP_NAME", "")
             if map_name:
                 self.current_map_name = map_name
                 self.status_bar.showMessage(f"当前地图: {map_name}，正在获取元数据...")
-                self.tcp_client.send_command({"CMD": "CMD_GET_MAP_META_DATA", "MAP_NAME": map_name})
+                self.tcp_client.send_command({
+                    "CMD": "CMD_GET_MAP_META_DATA",
+                    "MAP_NAME": map_name
+                })
             else:
                 self.status_bar.showMessage("未找到地图名称")
+
         elif cmd == "CMD_GET_MAP_META_DATA":
             meta = data.get("MAP_META_DATA", {})
             self.map_meta = meta
             self.map_widget.set_map_meta(meta)
             self.status_bar.showMessage("元数据已获取，正在下载地图...")
             if self.current_map_name:
-                self.tcp_client.send_command({"CMD": "CMD_GET_MAP_DATA", "MAP_NAME": self.current_map_name})
+                self.tcp_client.send_command({
+                    "CMD": "CMD_GET_MAP_DATA",
+                    "MAP_NAME": self.current_map_name
+                })
+
         elif cmd == "CMD_GET_MAP_DATA":
             map_data_b64 = data.get("MAP_DATA", "")
             if map_data_b64:
                 self.display_map(map_data_b64)
                 self.status_bar.showMessage("地图加载成功")
 
-    # ───────────── 地图 / 点云 / 位置 ─────────────
+        elif cmd == "CMD_GET_BATTERY":
+            battery = data.get("battery", None)
+            if battery is not None:
+                self.battery_label.setText(f"电量: {battery} %")
+
+    # ==================== 地图 / 点云 / 位置 ====================
     def on_get_map(self):
-        if not self.tcp_client.is_connected: return
+        if not self.tcp_client.is_connected:
+            return
         self.status_bar.showMessage("正在获取地图配置...")
         self.tcp_client.send_command({"CMD": "CMD_GET_CURRENT_MAP_CONFIG"})
 
@@ -253,12 +350,14 @@ class MainWindow(QMainWindow):
 
     def on_scan_received(self, data: dict):
         b64_data = data.get("LASER_SCAN", "")
-        if not b64_data: return
+        if not b64_data:
+            return
         try:
             raw = base64.b64decode(b64_data)
             points = []
             for i in range(0, len(raw), 12):
-                if i + 12 > len(raw): break
+                if i + 12 > len(raw):
+                    break
                 x, y, z = struct.unpack('<fff', raw[i:i+12])
                 points.append((x, y))
             self.map_widget.set_scan_points(points)
@@ -268,15 +367,34 @@ class MainWindow(QMainWindow):
     def on_pose_received(self, data: dict):
         pose = data.get("ROBOT_POSE", None)
         if pose:
-            self.robot_x = pose.get("X", 0.0)
-            self.robot_y = pose.get("Y", 0.0)
-            self.latest_theta = pose.get("THETA", 0.0)
-            self.map_widget.set_robot_pose(self.robot_x, self.robot_y, self.latest_theta)
+            x = pose.get("X", 0.0)
+            y = pose.get("Y", 0.0)
+            theta = pose.get("THETA", 0.0)
+
+            # 更新机器人箭头
+            self.map_widget.set_robot_pose(x, y, theta)
+
+            # 计算底盘移动速度
+            now = time.time()
+            if self.last_pose_time is not None and self.last_pose_x is not None:
+                dt = now - self.last_pose_time
+                if dt > 0.001:
+                    dx = x - self.last_pose_x
+                    dy = y - self.last_pose_y
+                    dist = math.sqrt(dx * dx + dy * dy)
+                    self.current_speed = dist / dt
+                    self.speed_label.setText(f"运动速度: {self.current_speed:.2f} m/s")
+            self.last_pose_time = now
+            self.last_pose_x = x
+            self.last_pose_y = y
+            self.robot_x = x
+            self.robot_y = y
+            self.latest_theta = theta
 
     def on_show_pose(self):
         self.status_bar.showMessage("位置实时显示中")
 
-    # ───────────── 导航 ─────────────
+    # ==================== 导航相关 ====================
     def on_add_goal_toggled(self, checked: bool):
         if checked:
             self.status_bar.showMessage("在地图上点击添加目标点")
@@ -289,6 +407,7 @@ class MainWindow(QMainWindow):
         if not self.map_meta or not self.map_widget._bg_pixmap:
             self.status_bar.showMessage("请先加载地图")
             return
+
         widget_w = self.map_widget.width()
         widget_h = self.map_widget.height()
         img_w = self.map_widget.map_img_width
@@ -367,7 +486,8 @@ class MainWindow(QMainWindow):
         }
         self.tcp_client.send_command(cmd)
         self.status_bar.showMessage(
-            f"前往目标点 {self.current_navi_index+1}/{len(self.navi_queue)}")
+            f"前往目标点 {self.current_navi_index+1}/{len(self.navi_queue)}"
+        )
 
     def _finish_navigation(self):
         self.nav_state = 'idle'
@@ -405,7 +525,7 @@ class MainWindow(QMainWindow):
         self.fail_count = 0
         self.status_bar.showMessage("导航已取消")
 
-    # ───────────── 连接 / Ping ─────────────
+    # ==================== 连接 / Ping ====================
     def on_connect(self):
         ip = self.edit_ip.text().strip() or "192.168.10.159"
         port_text = self.edit_port.text().strip() or "10000"
@@ -424,12 +544,18 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage("Ping 测试中...")
         self.tcp_client.send_command({"CMD": "CMD_GET_VERSION"})
 
-    # ───────────── 喷雾 ─────────────
+    # ==================== 喷雾开关 ====================
     def on_spray_left_on(self):   self.spray_controller.left_on()
     def on_spray_left_off(self):  self.spray_controller.left_off()
     def on_spray_right_on(self):  self.spray_controller.right_on()
     def on_spray_right_off(self): self.spray_controller.right_off()
+
     def on_spray_error(self, msg: str):
         self.status_bar.showMessage(f"喷雾错误: {msg}")
-    def on_voltage_updated(self, volt: float):
-        self.voltage_label.setText(f"电池电压: {volt:.1f} V")
+
+    # ==================== 水位更新 ====================
+    def on_left_water_updated(self, percent: float):
+        self.left_water_label.setText(f"水量: {percent:.1f} %")
+
+    def on_right_water_updated(self, percent: float):
+        self.right_water_label.setText(f"水量: {percent:.1f} %")

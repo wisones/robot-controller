@@ -3,27 +3,20 @@ import socket
 esp_ip = "192.168.10.200"
 esp_port = 8266
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.settimeout(3)
-
-try:
-    sock.connect((esp_ip, esp_port))
-    print("连接成功")
-    # 测试左喷开
-    sock.send(b"LEFT_ON\n")
-    print("发送 LEFT_ON")
-    # 等待返回（如果ESP代码有返回）
+def send_cmd(cmd):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(2)
     try:
-        resp = sock.recv(64)
-        print("回复:", resp.decode())
-    except:
-        pass
+        s.connect((esp_ip, esp_port))
+        s.send((cmd + "\n").encode())
+        resp = s.recv(64).decode().strip()
+        print(f"发送: {cmd}  → 回复: {resp}")
+    except Exception as e:
+        print(f"失败: {e}")
+    finally:
+        s.close()
 
-    # 2秒后关闭
-    import time
-    time.sleep(2)
-    sock.send(b"LEFT_OFF\n")
-    print("发送 LEFT_OFF")
-    sock.close()
-except Exception as e:
-    print("连接失败:", e)
+# 测试命令
+send_cmd("GET_WATER")
+send_cmd("TARE_LEFT")
+send_cmd("SET_LEFT_FULL")
