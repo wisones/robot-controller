@@ -167,7 +167,7 @@ class MainWindow(QMainWindow):
 
         self.left_water_label = QLabel("水量: --- %")
         calib_left_layout = QHBoxLayout()
-        self.btn_left_tare = QPushButton("去皮")
+        self.btn_left_tare = QPushButton("液面校准")
         self.btn_left_tare.setMaximumWidth(60)
         self.btn_left_full = QPushButton("设满")
         self.btn_left_full.setMaximumWidth(60)
@@ -199,7 +199,7 @@ class MainWindow(QMainWindow):
 
         self.right_water_label = QLabel("水量: --- %")
         calib_right_layout = QHBoxLayout()
-        self.btn_right_tare = QPushButton("去皮")
+        self.btn_right_tare = QPushButton("液面校准")
         self.btn_right_tare.setMaximumWidth(60)
         self.btn_right_full = QPushButton("设满")
         self.btn_right_full.setMaximumWidth(60)
