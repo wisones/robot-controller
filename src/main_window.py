@@ -12,7 +12,6 @@ from spray_controller import SprayController
 import base64
 import struct
 
-
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -107,7 +106,6 @@ class MainWindow(QMainWindow):
         self.edit_port = QLineEdit()
         self.edit_port.setPlaceholderText("例如: 9090")
         conn_layout.addRow("端口:", self.edit_port)
-
         btn_conn_layout = QHBoxLayout()
         self.btn_connect = QPushButton("连接")
         self.btn_connect.setMinimumHeight(30)
