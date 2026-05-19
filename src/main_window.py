@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (
 from map_widget import MapWidget
 from tcp_client import RobotTCPClient
 from spray_controller import SprayController
+from report_controller import ReportController
 import base64
 import struct
 
@@ -19,7 +20,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("鸡舍消毒机器人控制终端")
         # 设置窗口图标（PNG/ICO 均可）
         self.setWindowIcon(QIcon("resources/images/robot_icon.png"))
-        self.setMinimumSize(1000, 700)
+        self.setMinimumSize(1200, 1200)
 
         # ---------- 地图元数据 ----------
         self.map_meta = None
@@ -74,6 +75,11 @@ class MainWindow(QMainWindow):
         self.spray_controller.status_message.connect(self.on_spray_status)
         self.spray_controller.left_water_updated.connect(self.on_left_water_updated)
         self.spray_controller.right_water_updated.connect(self.on_right_water_updated)
+                # 指挥中心上报控制器
+        self.report_controller = ReportController()
+        self.report_controller.status_changed.connect(self.on_report_status)
+        self.report_controller.connection_ok.connect(self.on_report_connected)
+        self.report_controller.connection_failed.connect(self.on_report_failed)
 
         self.init_tcp_signals()
         self.init_ui_connections()          # 现在可以安全绑定按钮
@@ -156,12 +162,14 @@ class MainWindow(QMainWindow):
 
         btn_left_layout = QHBoxLayout()
         self.btn_spray_left_on = QPushButton("开启")
-        self.btn_spray_left_on.setMinimumHeight(40)
+        self.btn_spray_left_on.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.btn_spray_left_on.setMinimumHeight(35)
         self.btn_spray_left_on.setStyleSheet(
             "background-color: #4CAF50; color: white; font-weight: bold;"
         )
         self.btn_spray_left_off = QPushButton("关闭")
-        self.btn_spray_left_off.setMinimumHeight(40)
+        self.btn_spray_left_off.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.btn_spray_left_off.setMinimumHeight(35)
         self.btn_spray_left_off.setStyleSheet(
             "background-color: #f44336; color: white; font-weight: bold;"
         )
@@ -170,10 +178,17 @@ class MainWindow(QMainWindow):
 
         self.left_water_label = QLabel("水量: --- %")
         calib_left_layout = QHBoxLayout()
+        # 液面校准按钮
         self.btn_left_tare = QPushButton("液面校准")
-        self.btn_left_tare.setMaximumWidth(60)
+        self.btn_left_tare.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.btn_left_tare.setMinimumWidth(100)  # 确保文字不被截断
+        self.btn_left_tare.setMinimumHeight(35)
+        # 设满按钮
         self.btn_left_full = QPushButton("设满")
-        self.btn_left_full.setMaximumWidth(60)
+        self.btn_left_full.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.btn_left_full.setMinimumWidth(60)
+        self.btn_left_full.setMinimumHeight(35)
+
         calib_left_layout.addWidget(self.left_water_label)
         calib_left_layout.addStretch()
         calib_left_layout.addWidget(self.btn_left_tare)
@@ -188,12 +203,14 @@ class MainWindow(QMainWindow):
 
         btn_right_layout = QHBoxLayout()
         self.btn_spray_right_on = QPushButton("开启")
-        self.btn_spray_right_on.setMinimumHeight(40)
+        self.btn_spray_right_on.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.btn_spray_right_on.setMinimumHeight(35)
         self.btn_spray_right_on.setStyleSheet(
             "background-color: #4CAF50; color: white; font-weight: bold;"
         )
         self.btn_spray_right_off = QPushButton("关闭")
-        self.btn_spray_right_off.setMinimumHeight(40)
+        self.btn_spray_right_off.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.btn_spray_right_off.setMinimumHeight(35)
         self.btn_spray_right_off.setStyleSheet(
             "background-color: #f44336; color: white; font-weight: bold;"
         )
@@ -203,9 +220,15 @@ class MainWindow(QMainWindow):
         self.right_water_label = QLabel("水量: --- %")
         calib_right_layout = QHBoxLayout()
         self.btn_right_tare = QPushButton("液面校准")
-        self.btn_right_tare.setMaximumWidth(60)
+        self.btn_right_tare.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.btn_right_tare.setMinimumWidth(100)
+        self.btn_right_tare.setMinimumHeight(35)
+
         self.btn_right_full = QPushButton("设满")
-        self.btn_right_full.setMaximumWidth(60)
+        self.btn_right_full.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.btn_right_full.setMinimumWidth(60)
+        self.btn_right_full.setMinimumHeight(35)
+
         calib_right_layout.addWidget(self.right_water_label)
         calib_right_layout.addStretch()
         calib_right_layout.addWidget(self.btn_right_tare)
@@ -226,6 +249,34 @@ class MainWindow(QMainWindow):
         status_layout.addWidget(self.label_conn_status)
         status_layout.addWidget(self.speed_label)
         status_layout.addWidget(self.battery_label)
+
+                # ---- 指挥中心上报 ----
+        report_group = QGroupBox("指挥中心")
+        report_layout = QFormLayout(report_group)
+        self.edit_server_url = QLineEdit()
+        self.edit_server_url.setPlaceholderText("http://192.168.1.100:5000/api/robot/status")
+        self.edit_server_url.setText("http://127.0.0.1:5000/api/robot/status")   # 新增默认值
+        report_layout.addRow("服务器URL:", self.edit_server_url)
+
+        self.edit_device_id = QLineEdit()
+        self.edit_device_id.setPlaceholderText("robot_001")
+        self.edit_device_id.setText("robot_001")                                    # 新增默认值
+        report_layout.addRow("设备ID:", self.edit_device_id)
+
+        btn_report_layout = QHBoxLayout()
+        self.btn_report_connect = QPushButton("连接")
+        self.btn_report_connect.setMinimumHeight(30)
+        self.btn_report_test = QPushButton("测试连接")
+        self.btn_report_test.setMinimumHeight(30)
+        btn_report_layout.addWidget(self.btn_report_connect)
+        btn_report_layout.addWidget(self.btn_report_test)
+        report_layout.addRow(btn_report_layout)
+
+        self.label_report_status = QLabel("未连接")
+        self.label_report_status.setStyleSheet("color: orange; font-weight: bold;")
+        report_layout.addRow("状态:", self.label_report_status)
+
+        layout.addWidget(report_group)
 
         # ---- 总体布局 ----
         layout.addWidget(conn_group)
@@ -257,6 +308,8 @@ class MainWindow(QMainWindow):
         self.btn_left_full.clicked.connect(self.spray_controller.set_left_full)
         self.btn_right_tare.clicked.connect(self.spray_controller.tare_right)
         self.btn_right_full.clicked.connect(self.spray_controller.set_right_full)
+        self.btn_report_connect.clicked.connect(self.on_report_connect)
+        self.btn_report_test.clicked.connect(self.on_report_test)
 
     def init_tcp_signals(self):
         self.tcp_client.connected.connect(self.on_tcp_connected)
@@ -271,13 +324,15 @@ class MainWindow(QMainWindow):
     def on_tcp_connected(self):
         self.label_conn_status.setText("已连接")
         self.label_conn_status.setStyleSheet("color: green; font-weight: bold;")
-        self.status_bar.showMessage("底盘连接成功，自动订阅位置...")
+        self.status_bar.showMessage("底盘连接成功，自动订阅位置")
         self.tcp_client.send_command({"CMD": "CMD_SUB_POSE"})
+        self.report_controller.set_tcp_connected(True)
 
     def on_tcp_disconnected(self):
         self.label_conn_status.setText("未连接")
         self.label_conn_status.setStyleSheet("color: orange; font-weight: bold;")
         self.status_bar.showMessage("底盘连接已断开")
+        self.report_controller.set_tcp_connected(False)
 
     def on_tcp_error(self, err_msg: str):
         print(f"[TCP 错误] {err_msg}")
@@ -325,6 +380,7 @@ class MainWindow(QMainWindow):
             battery = data.get("battery", None)
             if battery is not None:
                 self.battery_label.setText(f"电量: {battery} %")
+                self.report_controller.update_battery(battery)
 
     # ==================== 地图 / 点云 / 位置 ====================
     def on_get_map(self):
@@ -557,6 +613,49 @@ class MainWindow(QMainWindow):
     # ==================== 水位更新 ====================
     def on_left_water_updated(self, percent: float):
         self.left_water_label.setText(f"水量: {percent:.1f} %")
+        self.report_controller.update_left_water(percent)
 
     def on_right_water_updated(self, percent: float):
         self.right_water_label.setText(f"水量: {percent:.1f} %")
+        self.report_controller.update_right_water(percent)
+
+    def on_report_connect(self):
+        if self.report_controller.enabled:
+            self.report_controller.stop()
+            self.btn_report_connect.setText("连接")
+            self.label_report_status.setText("未连接")
+            self.label_report_status.setStyleSheet("color: orange; font-weight: bold;")
+        else:
+            url = self.edit_server_url.text().strip()
+            device = self.edit_device_id.text().strip() or "robot_001"
+            if not url:
+                self.status_bar.showMessage("请输入服务器URL")
+                return
+            self.report_controller.configure(url, device)
+            self.report_controller.start()
+            self.btn_report_connect.setText("断开")
+            self.label_report_status.setText("已连接")
+            self.label_report_status.setStyleSheet("color: green; font-weight: bold;")
+            self.status_bar.showMessage("已连接指挥中心，开始上报")
+
+    def on_report_test(self):
+        url = self.edit_server_url.text().strip()
+        device = self.edit_device_id.text().strip() or "robot_001"
+        if not url:
+            self.status_bar.showMessage("请输入服务器URL")
+            return
+        self.report_controller.configure(url, device)
+        self.report_controller.test_connection()
+
+    def on_report_status(self, msg: str):
+        self.status_bar.showMessage(f"指挥中心: {msg}")
+
+    def on_report_connected(self):
+        self.status_bar.showMessage("指挥中心连接测试成功")
+        self.label_report_status.setText("测试成功")
+        self.label_report_status.setStyleSheet("color: green; font-weight: bold;")
+
+    def on_report_failed(self, err: str):
+        self.status_bar.showMessage(f"指挥中心连接失败: {err}")
+        self.label_report_status.setText("连接失败")
+        self.label_report_status.setStyleSheet("color: red; font-weight: bold;")
