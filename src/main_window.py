@@ -1,10 +1,11 @@
 # src/main_window.py
 import math, time
+from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QGroupBox, QLabel, QStatusBar, QSplitter,
-    QLineEdit, QFormLayout
+    QLineEdit, QFormLayout, QSizePolicy
 )
 from map_widget import MapWidget
 from tcp_client import RobotTCPClient
@@ -15,7 +16,9 @@ import struct
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("智科云机器人控制终端")
+        self.setWindowTitle("鸡舍消毒机器人控制终端")
+        # 设置窗口图标（PNG/ICO 均可）
+        self.setWindowIcon(QIcon("resources/images/robot_icon.png"))
         self.setMinimumSize(1000, 700)
 
         # ---------- 地图元数据 ----------
