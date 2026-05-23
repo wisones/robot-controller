@@ -1,5 +1,9 @@
 # src/main_window.py
-import math, time, sys, os, base64
+import math
+import time
+import sys
+import os
+import base64
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -77,12 +81,14 @@ class MainWindow(QMainWindow):
         # ---------- 通信对象 ----------
         self.tcp_client = RobotTCPClient()
 
+        # 喷雾控制器（稳定版，包含 send_reset 方法）
         self.spray_controller = SprayController(esp_ip="192.168.10.200")
         self.spray_controller.connection_error.connect(self.on_spray_error)
         self.spray_controller.status_message.connect(self.on_spray_status)
         self.spray_controller.left_water_updated.connect(self.on_left_water_updated)
         self.spray_controller.right_water_updated.connect(self.on_right_water_updated)
 
+        # 指挥中心上报
         self.report_controller = ReportController()
         self.report_controller.status_changed.connect(self.on_report_status)
         self.report_controller.connection_ok.connect(self.on_report_connected)
@@ -91,10 +97,12 @@ class MainWindow(QMainWindow):
         self.init_tcp_signals()
         self.init_ui_connections()
 
+        # 定时查询底盘电量
         self.battery_timer = QTimer(self)
         self.battery_timer.timeout.connect(self._query_battery)
         self.battery_timer.start(30000)
 
+        # 默认底盘 IP/端口
         self.edit_ip.setText("192.168.10.159")
         self.edit_port.setText("10000")
 
@@ -618,3 +626,8 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage(f"指挥中心连接失败: {err}")
         self.label_report_status.setText("连接失败")
         self.label_report_status.setStyleSheet("color: red; font-weight: bold;")
+
+    # ==================== 窗口关闭时发送软件复位命令 ====================
+    def closeEvent(self, event):
+        self.spray_controller.send_reset()
+        event.accept()
