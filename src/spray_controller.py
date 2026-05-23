@@ -1,5 +1,6 @@
 # src/spray_controller.py
 import socket
+import time
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QMutex
 
 class SprayController(QObject):
@@ -16,15 +17,30 @@ class SprayController(QObject):
         self.esp_port = esp_port
         self.sock = None
         self.mutex = QMutex()
-        self._reconnect_timer = QTimer(self)
-        self._reconnect_timer.timeout.connect(self._try_reconnect)
-        self._reconnect_timer.start(5000)          # 每 5 秒尝试重连
 
         self.water_timer = QTimer(self)
         self.water_timer.timeout.connect(self._request_water)
         self.water_timer.start(2000)
 
+        self._reconnect_timer = QTimer(self)
+        self._reconnect_timer.timeout.connect(self._try_reconnect)
+        self._reconnect_timer.start(5000)
+
+        # 首次连接前复位 ESP8266，确保它处于刚重启的状态
+        self._reset_esp()
         self._connect()
+
+    def _reset_esp(self):
+        """发送 RST 命令并等待 ESP 重启（约 2.5 秒）"""
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(1.0)
+            s.connect((self.esp_ip, self.esp_port))
+            s.sendall(b"RST\n")
+            s.close()
+            time.sleep(2.5)   # 等待 ESP 完成重启
+        except:
+            pass
 
     def _connect(self):
         try:
@@ -44,8 +60,9 @@ class SprayController(QObject):
             self.sock = None
 
     def _try_reconnect(self):
-        """定时尝试重连，直到成功"""
+        """定时尝试重连（重连前也复位 ESP）"""
         if self.sock is None:
+            self._reset_esp()
             self._connect()
 
     def _clear_buffer(self):
@@ -76,7 +93,6 @@ class SprayController(QObject):
         except socket.timeout:
             pass
         except (ConnectionResetError, ConnectionAbortedError, OSError):
-            # 连接已断开，标记断开
             self.sock = None
             self.disconnected.emit()
             return ""
