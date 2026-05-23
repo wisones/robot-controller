@@ -1,9 +1,5 @@
 # src/main_window.py
-import math
-import time
-import sys
-import os
-import base64
+import math, time, sys, os, base64
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -81,14 +77,16 @@ class MainWindow(QMainWindow):
         # ---------- 通信对象 ----------
         self.tcp_client = RobotTCPClient()
 
-        # 喷雾控制器（稳定版，包含 send_reset 方法）
         self.spray_controller = SprayController(esp_ip="192.168.10.200")
         self.spray_controller.connection_error.connect(self.on_spray_error)
         self.spray_controller.status_message.connect(self.on_spray_status)
         self.spray_controller.left_water_updated.connect(self.on_left_water_updated)
         self.spray_controller.right_water_updated.connect(self.on_right_water_updated)
+        self.spray_controller.connected.connect(lambda: self.status_bar.showMessage("喷雾控制器已连接"))
+        self.spray_controller.disconnected.connect(lambda: self.status_bar.showMessage("喷雾控制器已断开，正在后台重连..."))
+        self.spray_controller.command_started.connect(self.on_spray_command_started)
+        self.spray_controller.command_finished.connect(self.on_spray_command_finished)
 
-        # 指挥中心上报
         self.report_controller = ReportController()
         self.report_controller.status_changed.connect(self.on_report_status)
         self.report_controller.connection_ok.connect(self.on_report_connected)
@@ -97,12 +95,10 @@ class MainWindow(QMainWindow):
         self.init_tcp_signals()
         self.init_ui_connections()
 
-        # 定时查询底盘电量
         self.battery_timer = QTimer(self)
         self.battery_timer.timeout.connect(self._query_battery)
         self.battery_timer.start(30000)
 
-        # 默认底盘 IP/端口
         self.edit_ip.setText("192.168.10.159")
         self.edit_port.setText("10000")
 
@@ -585,6 +581,50 @@ class MainWindow(QMainWindow):
         self.right_water_label.setText(f"水量: {percent:.1f} %")
         self.report_controller.update_right_water(percent)
 
+    def on_spray_command_started(self, cmd: str):
+        btn = {
+            "TARE_LEFT": self.btn_left_tare,
+            "SET_LEFT_FULL": self.btn_left_full,
+            "TARE_RIGHT": self.btn_right_tare,
+            "SET_RIGHT_FULL": self.btn_right_full,
+            "LEFT_ON": self.btn_spray_left_on,
+            "LEFT_OFF": self.btn_spray_left_off,
+            "RIGHT_ON": self.btn_spray_right_on,
+            "RIGHT_OFF": self.btn_spray_right_off,
+        }.get(cmd)
+        if btn:
+            btn.setEnabled(False)
+            btn.setProperty("old_text", btn.text())
+            btn.setText("处理中...")
+
+    def on_spray_command_finished(self, cmd: str, ok: bool):
+        btn = {
+            "TARE_LEFT": self.btn_left_tare,
+            "SET_LEFT_FULL": self.btn_left_full,
+            "TARE_RIGHT": self.btn_right_tare,
+            "SET_RIGHT_FULL": self.btn_right_full,
+            "LEFT_ON": self.btn_spray_left_on,
+            "LEFT_OFF": self.btn_spray_left_off,
+            "RIGHT_ON": self.btn_spray_right_on,
+            "RIGHT_OFF": self.btn_spray_right_off,
+        }.get(cmd)
+        if btn:
+            old_text = btn.property("old_text")
+            if old_text:
+                btn.setText(old_text)
+            btn.setEnabled(True)
+
+    def closeEvent(self, event):
+        try:
+            self.spray_controller.close()
+        except Exception:
+            pass
+        try:
+            self.tcp_client.disconnect()
+        except Exception:
+            pass
+        super().closeEvent(event)
+
     # ==================== 指挥中心上报 ====================
     def on_report_connect(self):
         if self.report_controller.enabled:
@@ -626,8 +666,3 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage(f"指挥中心连接失败: {err}")
         self.label_report_status.setText("连接失败")
         self.label_report_status.setStyleSheet("color: red; font-weight: bold;")
-
-    # ==================== 窗口关闭时发送软件复位命令 ====================
-    def closeEvent(self, event):
-        self.spray_controller.send_reset()
-        event.accept()
