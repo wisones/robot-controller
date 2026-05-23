@@ -16,7 +16,5 @@ def send_cmd(cmd):
     finally:
         s.close()
 
-# 测试命令
-send_cmd("GET_WATER")
-send_cmd("TARE_LEFT")
-send_cmd("SET_LEFT_FULL")
+send_cmd("LEFT_ON")
+send_cmd("LEFT_OFF")

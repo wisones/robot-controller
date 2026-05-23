@@ -1,12 +1,16 @@
 # src/main_window.py
-import math, time
-from PyQt5.QtGui import QIcon
+import socket
+import math
+import time
+import sys
+import os
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QGroupBox, QLabel, QStatusBar, QSplitter,
-    QLineEdit, QFormLayout, QSizePolicy
+    QLineEdit, QFormLayout, QSizePolicy  
 )
+from PyQt5.QtGui import QIcon
 from map_widget import MapWidget
 from tcp_client import RobotTCPClient
 from spray_controller import SprayController
@@ -14,13 +18,21 @@ from report_controller import ReportController
 import base64
 import struct
 
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("鸡舍消毒机器人控制终端")
-        # 设置窗口图标（PNG/ICO 均可）
-        self.setWindowIcon(QIcon("resources/images/robot_icon.png"))
         self.setMinimumSize(1200, 1200)
+
+        # 设置窗口图标（兼容打包与源码运行）
+        if getattr(sys, 'frozen', False):
+            base_path = sys._MEIPASS
+        else:
+            base_path = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(base_path, "resources", "images", "robot_icon.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
         # ---------- 地图元数据 ----------
         self.map_meta = None
@@ -659,3 +671,15 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage(f"指挥中心连接失败: {err}")
         self.label_report_status.setText("连接失败")
         self.label_report_status.setStyleSheet("color: red; font-weight: bold;")
+
+    def closeEvent(self, event):
+        """窗口关闭时给ESP8266发送复位命令"""
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.5)
+            s.connect(("192.168.10.200", 8266))
+            s.sendall(b"RST\n")
+            s.close()
+        except Exception:
+            pass
+        event.accept()
