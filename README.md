@@ -146,3 +146,9 @@ robot-controller/
 4.  [GVP](https://gitee.com/gvp) 全称是 Gitee 最有价值开源项目，是综合评定出的优秀开源项目
 5.  Gitee 官方提供的使用手册 [https://gitee.com/help](https://gitee.com/help)
 6.  Gitee 封面人物是一档用来展示 Gitee 会员风采的栏目 [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+
+
+
+
+
+现在我这里使用了ESP8266 nodeMCU带WIFI的开发板来实现控制，控制两个水泵和两个称重传感器，水泵电机的驱动为XY-COM，称重传感器的驱动HX711。在这个基础上，我用了一个上位机UI功能界面来远程控制ESP8266，通信方式为WIFI。现在出现了一个问题，每次UI界面启动后，如果不重新毒断电重启ESP的话，UI界面就无法连接ESP8266，请问原因在什么地方；我使用了ESP.restart()软件系统重启动，也无法解决。现在我打算使用硬启动方式，通过将ESP上面的IO改变信号发送给RST口来实现重新断电启动，这种方式是否合适。
