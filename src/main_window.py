@@ -3,9 +3,10 @@ import math
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QGroupBox, QLabel, QStatusBar, QSplitter,
-    QLineEdit, QFormLayout
+    QLineEdit, QFormLayout, QSlider, QSpinBox, QComboBox, QCheckBox,
+    QMessageBox
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 from map_widget import MapWidget
 from tcp_client import RobotTCPClient
 from spray_controller import SprayController
@@ -144,6 +145,96 @@ class MainWindow(QMainWindow):
         spray_right_layout.addWidget(self.btn_spray_right_on)
         spray_right_layout.addWidget(self.btn_spray_right_off)
 
+        # PWM控制
+        pwm_group = QGroupBox("电机PWM控制")
+        pwm_layout = QVBoxLayout(pwm_group)
+
+        # 占空比控制
+        duty_layout = QHBoxLayout()
+        duty_layout.addWidget(QLabel("占空比:"))
+        self.slider_duty = QSlider(Qt.Horizontal)
+        self.slider_duty.setRange(0, 100)
+        self.slider_duty.setValue(80)
+        self.slider_duty.setTickPosition(QSlider.TicksBelow)
+        self.slider_duty.setTickInterval(10)
+        duty_layout.addWidget(self.slider_duty)
+        self.label_duty_value = QLabel("80%")
+        self.label_duty_value.setMinimumWidth(40)
+        duty_layout.addWidget(self.label_duty_value)
+        self.btn_set_duty = QPushButton("设置")
+        self.btn_set_duty.setMinimumHeight(30)
+        duty_layout.addWidget(self.btn_set_duty)
+        pwm_layout.addLayout(duty_layout)
+
+        # 频率控制
+        freq_layout = QHBoxLayout()
+        freq_layout.addWidget(QLabel("频率(Hz):"))
+        self.spin_freq = QSpinBox()
+        self.spin_freq.setRange(100, 50000)
+        self.spin_freq.setValue(10000)
+        self.spin_freq.setSingleStep(1000)
+        freq_layout.addWidget(self.spin_freq)
+        self.btn_set_freq = QPushButton("设置")
+        self.btn_set_freq.setMinimumHeight(30)
+        freq_layout.addWidget(self.btn_set_freq)
+        pwm_layout.addLayout(freq_layout)
+
+        # 电压提升
+        boost_layout = QHBoxLayout()
+        boost_layout.addWidget(QLabel("电压提升:"))
+        self.slider_boost = QSlider(Qt.Horizontal)
+        self.slider_boost.setRange(0, 50)
+        self.slider_boost.setValue(0)
+        self.slider_boost.setTickPosition(QSlider.TicksBelow)
+        self.slider_boost.setTickInterval(5)
+        boost_layout.addWidget(self.slider_boost)
+        self.label_boost_value = QLabel("0%")
+        self.label_boost_value.setMinimumWidth(40)
+        boost_layout.addWidget(self.label_boost_value)
+        self.btn_set_boost = QPushButton("设置")
+        self.btn_set_boost.setMinimumHeight(30)
+        boost_layout.addWidget(self.btn_set_boost)
+        pwm_layout.addLayout(boost_layout)
+
+        # 模式控制
+        mode_layout = QHBoxLayout()
+        self.combo_mode = QComboBox()
+        self.combo_mode.addItems(["连续模式", "脉冲模式"])
+        mode_layout.addWidget(self.combo_mode)
+        self.btn_set_mode = QPushButton("应用模式")
+        self.btn_set_mode.setMinimumHeight(30)
+        mode_layout.addWidget(self.btn_set_mode)
+        pwm_layout.addLayout(mode_layout)
+
+        # 过驱动控制
+        overdrive_layout = QHBoxLayout()
+        self.btn_overdrive = QPushButton("过驱动启动")
+        self.btn_overdrive.setMinimumHeight(35)
+        self.btn_overdrive.setStyleSheet("background-color: #FF9800; color: white; font-weight: bold;")
+        overdrive_layout.addWidget(self.btn_overdrive)
+        self.btn_motor_enable = QPushButton("电机使能")
+        self.btn_motor_enable.setMinimumHeight(35)
+        self.btn_motor_enable.setStyleSheet("background-color: #9C27B0; color: white; font-weight: bold;")
+        overdrive_layout.addWidget(self.btn_motor_enable)
+        pwm_layout.addLayout(overdrive_layout)
+
+        # PWM配置查询
+        config_layout = QHBoxLayout()
+        self.btn_get_pwm_config = QPushButton("查询PWM配置")
+        self.btn_get_pwm_config.setMinimumHeight(30)
+        config_layout.addWidget(self.btn_get_pwm_config)
+        self.label_pwm_config = QLabel("未查询")
+        config_layout.addWidget(self.label_pwm_config)
+        pwm_layout.addLayout(config_layout)
+
+        # 电压优化控制
+        optimize_layout = QHBoxLayout()
+        self.btn_auto_optimize = QPushButton("自动优化电压")
+        self.btn_auto_optimize.setMinimumHeight(35)
+        self.btn_auto_optimize.setStyleSheet("background-color: #607D8B; color: white; font-weight: bold;")
+        optimize_layout.addWidget(self.btn_auto_optimize)
+        pwm_layout.addLayout(optimize_layout)
+
         # 连接状态
         status_group = QGroupBox("连接状态")
         status_layout = QVBoxLayout(status_group)
@@ -158,6 +249,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(navi_group)
         layout.addWidget(spray_left_group)
         layout.addWidget(spray_right_group)
+        layout.addWidget(pwm_group)
         layout.addWidget(status_group)
         layout.addStretch()
         return panel
@@ -177,6 +269,18 @@ class MainWindow(QMainWindow):
         self.btn_spray_right_on.clicked.connect(self.on_spray_right_on)
         self.btn_spray_right_off.clicked.connect(self.on_spray_right_off)
 
+        # PWM控制连接
+        self.slider_duty.valueChanged.connect(self.on_duty_slider_changed)
+        self.btn_set_duty.clicked.connect(self.on_set_duty)
+        self.btn_set_freq.clicked.connect(self.on_set_freq)
+        self.slider_boost.valueChanged.connect(self.on_boost_slider_changed)
+        self.btn_set_boost.clicked.connect(self.on_set_boost)
+        self.btn_set_mode.clicked.connect(self.on_set_mode)
+        self.btn_overdrive.clicked.connect(self.on_overdrive)
+        self.btn_motor_enable.clicked.connect(self.on_motor_enable)
+        self.btn_get_pwm_config.clicked.connect(self.on_get_pwm_config)
+        self.btn_auto_optimize.clicked.connect(self.on_auto_optimize)
+
     def init_tcp_signals(self):
         self.tcp_client.connected.connect(self.on_tcp_connected)
         self.tcp_client.disconnected.connect(self.on_tcp_disconnected)
@@ -185,6 +289,9 @@ class MainWindow(QMainWindow):
         self.tcp_client.scan_received.connect(self.on_scan_received)
         self.tcp_client.pose_received.connect(self.on_pose_received)
         self.tcp_client.navi_received.connect(self.on_navi_received)
+
+        # 喷雾控制器信号
+        self.spray_controller.pwm_config_received.connect(self.on_pwm_config_received)
 
     # ───────────── TCP 回调 ─────────────
     def on_tcp_connected(self):
@@ -433,3 +540,186 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage(f"喷雾错误: {msg}")
     def on_voltage_updated(self, volt: float):
         self.voltage_label.setText(f"电池电压: {volt:.1f} V")
+
+    # ───────────── PWM控制 ─────────────
+    def on_duty_slider_changed(self, value):
+        self.label_duty_value.setText(f"{value}%")
+
+    def on_set_duty(self):
+        duty = self.slider_duty.value()
+        if self.spray_controller.set_pwm_duty(duty):
+            self.status_bar.showMessage(f"已设置占空比: {duty}%")
+        else:
+            self.status_bar.showMessage("占空比设置失败")
+
+    def on_set_freq(self):
+        freq = self.spin_freq.value()
+        if self.spray_controller.set_pwm_frequency(freq):
+            self.status_bar.showMessage(f"已设置PWM频率: {freq}Hz")
+        else:
+            self.status_bar.showMessage("频率设置失败")
+
+    def on_boost_slider_changed(self, value):
+        self.label_boost_value.setText(f"{value}%")
+
+    def on_set_boost(self):
+        boost = self.slider_boost.value()
+        if self.spray_controller.set_voltage_boost(boost):
+            self.status_bar.showMessage(f"已设置电压提升: {boost}%")
+        else:
+            self.status_bar.showMessage("电压提升设置失败")
+
+    def on_set_mode(self):
+        mode = self.combo_mode.currentText()
+        if mode == "连续模式":
+            self.spray_controller.enable_continuous_mode()
+            self.status_bar.showMessage("已切换到连续喷雾模式")
+        else:
+            self.spray_controller.enable_pulse_mode()
+            self.status_bar.showMessage("已切换到脉冲喷雾模式")
+
+    def on_overdrive(self):
+        self.spray_controller.overdrive_start(duration_ms=100, duty_percent=100)
+        self.status_bar.showMessage("过驱动启动中...")
+
+    def on_motor_enable(self):
+        self.spray_controller.set_motor_enable(True)
+        self.status_bar.showMessage("电机已使能")
+
+    def on_get_pwm_config(self):
+        self.spray_controller.get_pwm_config()
+        self.status_bar.showMessage("正在查询PWM配置...")
+
+    def on_pwm_config_received(self, config):
+        """接收PWM配置响应"""
+        if config:
+            # 更新UI显示配置
+            duty = config.get('duty', '未知')
+            freq = config.get('freq', '未知')
+            boost = config.get('boost', '未知')
+            mode = config.get('mode', '未知')
+
+            config_text = f"占空比:{duty}%, 频率:{freq}Hz, 提升:{boost}%, 模式:{mode}"
+            self.label_pwm_config.setText(config_text)
+            self.status_bar.showMessage(f"PWM配置: {config_text}")
+        else:
+            self.label_pwm_config.setText("解析失败")
+            self.status_bar.showMessage("PWM配置解析失败")
+
+    def on_auto_optimize(self):
+        """自动优化电压：测试不同参数找到最佳组合"""
+        self.status_bar.showMessage("开始自动电压优化...")
+        # 这里可以实现自动优化算法
+        # 例如：测试不同占空比和频率的组合，监测电压变化
+        self._run_voltage_optimization()
+
+    def _run_voltage_optimization(self):
+        """运行电压优化算法"""
+        # 实现优化逻辑
+        # 1. 测试不同占空比 (50%, 60%, 70%, 80%, 90%, 100%)
+        # 2. 测试不同频率 (1kHz, 5kHz, 10kHz, 20kHz)
+        # 3. 监测电压变化，找到最佳组合
+
+        # 优化参数
+        duty_values = [50, 60, 70, 80, 90, 100]
+        freq_values = [1000, 5000, 10000, 20000]
+
+        # 存储结果
+        self.optimization_results = []
+        self.current_optimization_step = 0
+        self.total_steps = len(duty_values) * len(freq_values)
+
+        # 开始优化
+        self.status_bar.showMessage(f"开始电压优化测试 ({self.total_steps} 步)")
+
+        # 创建定时器逐步测试
+        self.optimization_timer = QTimer(self)
+        self.optimization_timer.timeout.connect(self._optimization_step)
+        self.optimization_timer.start(500)  # 每500ms测试一步
+
+        # 保存当前设置
+        self._original_duty = self.slider_duty.value()
+        self._original_freq = self.spin_freq.value()
+
+        # 生成测试序列
+        self.test_sequence = []
+        for duty in duty_values:
+            for freq in freq_values:
+                self.test_sequence.append((duty, freq))
+
+    def _optimization_step(self):
+        """优化步骤：测试下一组参数"""
+        if self.current_optimization_step >= self.total_steps:
+            # 优化完成
+            self.optimization_timer.stop()
+            self._finish_optimization()
+            return
+
+        # 获取当前测试参数
+        duty, freq = self.test_sequence[self.current_optimization_step]
+
+        # 设置参数
+        self.spray_controller.set_pwm_duty(duty)
+        self.spray_controller.set_pwm_frequency(freq)
+
+        # 更新UI
+        self.slider_duty.setValue(duty)
+        self.spin_freq.setValue(freq)
+
+        # 记录当前电压
+        current_voltage = float(self.voltage_label.text().split(":")[1].split("V")[0].strip())
+
+        # 存储结果
+        self.optimization_results.append({
+            'duty': duty,
+            'freq': freq,
+            'voltage': current_voltage,
+            'step': self.current_optimization_step
+        })
+
+        # 更新状态
+        self.status_bar.showMessage(
+            f"优化测试 {self.current_optimization_step+1}/{self.total_steps}: "
+            f"占空比{duty}%, 频率{freq}Hz, 电压{current_voltage:.1f}V"
+        )
+
+        self.current_optimization_step += 1
+
+    def _finish_optimization(self):
+        """完成优化，分析结果"""
+        if not self.optimization_results:
+            self.status_bar.showMessage("优化测试无结果")
+            return
+
+        # 找到最佳参数（电压最高的组合）
+        best_result = max(self.optimization_results, key=lambda x: x['voltage'])
+
+        # 恢复原始设置
+        self.spray_controller.set_pwm_duty(self._original_duty)
+        self.spray_controller.set_pwm_frequency(self._original_freq)
+        self.slider_duty.setValue(self._original_duty)
+        self.spin_freq.setValue(self._original_freq)
+
+        # 显示结果
+        self.status_bar.showMessage(
+            f"优化完成！最佳参数: 占空比{best_result['duty']}%, "
+            f"频率{best_result['freq']}Hz, 电压{best_result['voltage']:.1f}V"
+        )
+
+        # 询问是否应用最佳参数
+        reply = QMessageBox.question(
+            self, "优化结果",
+            f"找到最佳参数组合:\n"
+            f"占空比: {best_result['duty']}%\n"
+            f"频率: {best_result['freq']}Hz\n"
+            f"电压: {best_result['voltage']:.1f}V\n\n"
+            f"是否应用这些参数？",
+            QMessageBox.Yes | QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            self.spray_controller.set_pwm_duty(best_result['duty'])
+            self.spray_controller.set_pwm_frequency(best_result['freq'])
+            self.slider_duty.setValue(best_result['duty'])
+            self.spin_freq.setValue(best_result['freq'])
+            self.status_bar.showMessage("已应用最佳参数")
