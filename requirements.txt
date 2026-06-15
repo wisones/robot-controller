@@ -1,7 +1,5 @@
-anaconda-anon-usage
-anaconda-auth 
-anaconda-cli-base 
-annotated-types 
+
+annotated-types
 anyio 
 archspec 
 boltons
