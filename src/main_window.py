@@ -16,7 +16,7 @@ import struct
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("智科云机器人控制终端")
+        self.setWindowTitle("消毒机器人控制终端")
         self.setMinimumSize(1000, 700)
 
         self.map_meta = None
@@ -55,13 +55,14 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage("就绪 | 未连接机器人")
 
         self.tcp_client = RobotTCPClient()
-        self.init_tcp_signals()
-        self.init_ui_connections()
 
         # 喷雾控制器
         self.spray_controller = SprayController(esp_ip="192.168.10.200")
         self.spray_controller.connection_error.connect(self.on_spray_error)
         self.spray_controller.voltage_updated.connect(self.on_voltage_updated)
+
+        self.init_tcp_signals()
+        self.init_ui_connections()
 
         self.edit_ip.setText("192.168.10.159")
         self.edit_port.setText("10000")
@@ -69,8 +70,13 @@ class MainWindow(QMainWindow):
     # ───────────── UI 构建 ─────────────
     def create_right_panel(self) -> QWidget:
         panel = QWidget()
-        layout = QVBoxLayout(panel)
-        layout.setSpacing(15)
+        main_layout = QHBoxLayout(panel)
+        main_layout.setSpacing(10)
+
+        # 左侧列：底盘连接、地图控制、顺序导航、连接状态
+        left_column = QWidget()
+        left_layout = QVBoxLayout(left_column)
+        left_layout.setSpacing(10)
 
         # 底盘连接
         conn_group = QGroupBox("底盘连接")
@@ -121,6 +127,26 @@ class MainWindow(QMainWindow):
         navi_layout.addWidget(self.btn_clear_goals)
         navi_layout.addWidget(self.btn_start_navi)
         navi_layout.addWidget(self.btn_cancel_navi)
+
+        # 连接状态
+        status_group = QGroupBox("连接状态")
+        status_layout = QVBoxLayout(status_group)
+        self.label_conn_status = QLabel("未连接")
+        self.label_conn_status.setStyleSheet("color: orange; font-weight: bold;")
+        self.voltage_label = QLabel("电池电压: --- V")
+        status_layout.addWidget(self.label_conn_status)
+        status_layout.addWidget(self.voltage_label)
+
+        left_layout.addWidget(conn_group)
+        left_layout.addWidget(map_group)
+        left_layout.addWidget(navi_group)
+        left_layout.addWidget(status_group)
+        left_layout.addStretch()
+
+        # 右侧列：喷雾控制、PWM控制
+        right_column = QWidget()
+        right_layout = QVBoxLayout(right_column)
+        right_layout.setSpacing(10)
 
         # 喷雾控制
         spray_left_group = QGroupBox("左侧喷雾")
@@ -235,23 +261,13 @@ class MainWindow(QMainWindow):
         optimize_layout.addWidget(self.btn_auto_optimize)
         pwm_layout.addLayout(optimize_layout)
 
-        # 连接状态
-        status_group = QGroupBox("连接状态")
-        status_layout = QVBoxLayout(status_group)
-        self.label_conn_status = QLabel("未连接")
-        self.label_conn_status.setStyleSheet("color: orange; font-weight: bold;")
-        self.voltage_label = QLabel("电池电压: --- V")
-        status_layout.addWidget(self.label_conn_status)
-        status_layout.addWidget(self.voltage_label)
+        right_layout.addWidget(spray_left_group)
+        right_layout.addWidget(spray_right_group)
+        right_layout.addWidget(pwm_group)
+        right_layout.addStretch()
 
-        layout.addWidget(conn_group)
-        layout.addWidget(map_group)
-        layout.addWidget(navi_group)
-        layout.addWidget(spray_left_group)
-        layout.addWidget(spray_right_group)
-        layout.addWidget(pwm_group)
-        layout.addWidget(status_group)
-        layout.addStretch()
+        main_layout.addWidget(left_column)
+        main_layout.addWidget(right_column)
         return panel
 
     def init_ui_connections(self):
