@@ -1,19 +1,24 @@
 
 /*
-  ESP8266 Spray + HX711 Liquid Level Firmware
+  ESP8266 Spray PWM + HX711 Liquid Level Firmware
   WiFi: connects to chassis AP ZPF_002 / samheos666
   Static IP: 192.168.10.200
   TCP Port: 8266
 
   Wiring:
-    Left spray relay:  D1 / GPIO5
-    Right spray relay: D2 / GPIO4
+    Left spray PWM:  D1 / GPIO5  (connect to XY-COM IN)
+    Right spray PWM: D2 / GPIO4  (connect to XY-COM IN)
 
     Left HX711:  DT=D5 / GPIO14, SCK=D6 / GPIO12
     Right HX711: DT=D7 / GPIO13, SCK=D0 / GPIO16
 
   PC commands:
     LEFT_ON / LEFT_OFF / RIGHT_ON / RIGHT_OFF -> OK
+    SET_DUTY <0-1023> -> OK  (set both PWM duty cycle)
+    SET_LEFT_DUTY <0-1023> -> OK  (set left PWM duty)
+    SET_RIGHT_DUTY <0-1023> -> OK  (set right PWM duty)
+    SET_FREQ <100-10000> -> OK  (set PWM frequency in Hz)
+    GET_PWM -> leftDuty,rightDuty,freq
     TARE_LEFT / TARE_RIGHT -> OK or ERR:...
     SET_LEFT_FULL / SET_RIGHT_FULL -> OK or ERR:...
     GET_WATER -> leftPercent,rightPercent
@@ -43,23 +48,22 @@ WiFiServer server(TCP_PORT);
 WiFiClient client;
 
 // ===================== Pin Config =====================
-#define LEFT_RELAY_PIN   D1
-#define RIGHT_RELAY_PIN  D2
+#define LEFT_PWM_PIN   D1   // GPIO5
+#define RIGHT_PWM_PIN  D2   // GPIO4
 
-#define LEFT_HX_DT       D5
-#define LEFT_HX_SCK      D6
+#define LEFT_HX_DT     D5   // GPIO14
+#define LEFT_HX_SCK    D6   // GPIO12
 
-#define RIGHT_HX_DT      D7
-#define RIGHT_HX_SCK     D0
+#define RIGHT_HX_DT    D7   // GPIO13
+#define RIGHT_HX_SCK   D0   // GPIO16
 
-// Most relay boards are active-low.
-// If ON/OFF is reversed, change to false and re-upload.
-const bool RELAY_ACTIVE_LOW = false;
-
-// If the relay still turns on during boot, set this true.
-// It delays relay pin activation until WiFi/server is ready,
-// while keeping pins in a safe inactive state as early as possible.
-const bool EXTRA_SAFE_BOOT = true;
+// ===================== PWM Config =====================
+// ESP8266 PWM range: 0-1023
+int pwmFreq = 1000;        // Default PWM frequency: 1000Hz
+int leftDuty = 0;          // 0-1023
+int rightDuty = 0;         // 0-1023
+bool leftOn = false;
+bool rightOn = false;
 
 // ===================== HX711 =====================
 HX711 hxLeft;
@@ -90,20 +94,57 @@ const unsigned long SAMPLE_INTERVAL_MS = 120;
 unsigned long lastWifiTryMs = 0;
 const unsigned long WIFI_RETRY_INTERVAL_MS = 5000;
 
-// ===================== Helpers =====================
-void relayWrite(uint8_t pin, bool on) {
-  if (RELAY_ACTIVE_LOW) {
-    digitalWrite(pin, on ? LOW : HIGH);
-  } else {
-    digitalWrite(pin, on ? HIGH : LOW);
+// ===================== PWM Functions =====================
+void setPWMFrequency(int freq) {
+  freq = constrain(freq, 100, 10000);
+  pwmFreq = freq;
+  analogWriteFreq(pwmFreq);
+  Serial.print("PWM frequency set to: ");
+  Serial.println(pwmFreq);
+}
+
+void setLeftPWM(int duty) {
+  duty = constrain(duty, 0, 1023);
+  leftDuty = duty;
+  if (leftOn) {
+    analogWrite(LEFT_PWM_PIN, leftDuty);
   }
 }
 
-void allSprayOff() {
-  relayWrite(LEFT_RELAY_PIN, false);
-  relayWrite(RIGHT_RELAY_PIN, false);
+void setRightPWM(int duty) {
+  duty = constrain(duty, 0, 1023);
+  rightDuty = duty;
+  if (rightOn) {
+    analogWrite(RIGHT_PWM_PIN, rightDuty);
+  }
 }
 
+void leftSprayOn() {
+  leftOn = true;
+  analogWrite(LEFT_PWM_PIN, leftDuty);
+}
+
+void leftSprayOff() {
+  leftOn = false;
+  analogWrite(LEFT_PWM_PIN, 0);
+}
+
+void rightSprayOn() {
+  rightOn = true;
+  analogWrite(RIGHT_PWM_PIN, rightDuty);
+}
+
+void rightSprayOff() {
+  rightOn = false;
+  analogWrite(RIGHT_PWM_PIN, 0);
+}
+
+void allSprayOff() {
+  leftSprayOff();
+  rightSprayOff();
+}
+
+// ===================== HX711 Functions =====================
 float calcPercent(long raw, long zero, long full) {
   long span = full - zero;
   if (labs(span) < 100) {
@@ -206,19 +247,50 @@ void handleCommand(String cmd) {
   Serial.print("CMD: ");
   Serial.println(cmd);
 
+  // Basic spray control
   if (cmd == "LEFT_ON") {
-    relayWrite(LEFT_RELAY_PIN, true);
+    leftSprayOn();
     sendLine("OK");
   } else if (cmd == "LEFT_OFF") {
-    relayWrite(LEFT_RELAY_PIN, false);
+    leftSprayOff();
     sendLine("OK");
   } else if (cmd == "RIGHT_ON") {
-    relayWrite(RIGHT_RELAY_PIN, true);
+    rightSprayOn();
     sendLine("OK");
   } else if (cmd == "RIGHT_OFF") {
-    relayWrite(RIGHT_RELAY_PIN, false);
+    rightSprayOff();
     sendLine("OK");
 
+  // PWM control commands
+  } else if (cmd.startsWith("SET_DUTY ")) {
+    int duty = cmd.substring(9).toInt();
+    duty = constrain(duty, 0, 1023);
+    leftDuty = duty;
+    rightDuty = duty;
+    if (leftOn) analogWrite(LEFT_PWM_PIN, leftDuty);
+    if (rightOn) analogWrite(RIGHT_PWM_PIN, rightDuty);
+    sendLine("OK");
+
+  } else if (cmd.startsWith("SET_LEFT_DUTY ")) {
+    int duty = cmd.substring(14).toInt();
+    setLeftPWM(duty);
+    sendLine("OK");
+
+  } else if (cmd.startsWith("SET_RIGHT_DUTY ")) {
+    int duty = cmd.substring(15).toInt();
+    setRightPWM(duty);
+    sendLine("OK");
+
+  } else if (cmd.startsWith("SET_FREQ ")) {
+    int freq = cmd.substring(9).toInt();
+    setPWMFrequency(freq);
+    sendLine("OK");
+
+  } else if (cmd == "GET_PWM") {
+    String s = String(leftDuty) + "," + String(rightDuty) + "," + String(pwmFreq);
+    sendLine(s);
+
+  // Water level commands
   } else if (cmd == "TARE_LEFT") {
     sampleHX711();
     if (leftOk) {
@@ -274,6 +346,9 @@ void handleCommand(String cmd) {
     s += ",IP=" + WiFi.localIP().toString();
     s += ",PORT=" + String(TCP_PORT);
     s += ",CLIENT=" + String(client && client.connected() ? 1 : 0);
+    s += ",PWM_FREQ=" + String(pwmFreq);
+    s += ",LEFT_DUTY=" + String(leftDuty);
+    s += ",RIGHT_DUTY=" + String(rightDuty);
     sendLine(s);
 
   } else if (cmd == "RESET_CALIB" || cmd == "CLEAR_CALIB") {
@@ -303,15 +378,20 @@ void handleCommand(String cmd) {
 String rxLine;
 
 void setup() {
-  // First instruction after boot: force relays OFF.
-  pinMode(LEFT_RELAY_PIN, OUTPUT);
-  pinMode(RIGHT_RELAY_PIN, OUTPUT);
+  // First instruction after boot: force PWM off
+  pinMode(LEFT_PWM_PIN, OUTPUT);
+  pinMode(RIGHT_PWM_PIN, OUTPUT);
   allSprayOff();
+
+  // Initialize PWM frequency
+  analogWriteFreq(pwmFreq);
+  analogWriteRange(1023);
 
   Serial.begin(115200);
   delay(80);
   Serial.println();
-  Serial.println("ESP8266 Spray HX711 ZPF_002 Firmware");
+  Serial.println("ESP8266 Spray PWM + HX711 Firmware");
+  Serial.println("PWM Control Enabled - Ready for pressure boost");
 
   loadCalib();
 
@@ -395,4 +475,3 @@ void loop() {
 
   delay(1);
 }
-
