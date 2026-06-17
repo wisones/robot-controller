@@ -104,6 +104,34 @@ class SprayController(QObject):
     def right_off(self):
         self._enqueue_command("RIGHT_OFF", "右喷雾关闭", expect_response=True)
 
+    # ---- PWM控制 ----
+    def set_duty(self, duty_percent: int):
+        """设置左右PWM占空比 (0-100%)"""
+        duty = int(duty_percent * 1023 / 100)  # 转换为0-1023范围
+        duty = max(0, min(1023, duty))
+        self._enqueue_command(f"SET_DUTY {duty}", f"设置占空比 {duty_percent}%", expect_response=True)
+
+    def set_left_duty(self, duty_percent: int):
+        """设置左侧PWM占空比 (0-100%)"""
+        duty = int(duty_percent * 1023 / 100)
+        duty = max(0, min(1023, duty))
+        self._enqueue_command(f"SET_LEFT_DUTY {duty}", f"设置左侧占空比 {duty_percent}%", expect_response=True)
+
+    def set_right_duty(self, duty_percent: int):
+        """设置右侧PWM占空比 (0-100%)"""
+        duty = int(duty_percent * 1023 / 100)
+        duty = max(0, min(1023, duty))
+        self._enqueue_command(f"SET_RIGHT_DUTY {duty}", f"设置右侧占空比 {duty_percent}%", expect_response=True)
+
+    def set_pwm_frequency(self, freq_hz: int):
+        """设置PWM频率 (100-10000Hz)"""
+        freq = max(100, min(10000, freq_hz))
+        self._enqueue_command(f"SET_FREQ {freq}", f"设置PWM频率 {freq}Hz", expect_response=True)
+
+    def get_pwm_config(self):
+        """获取当前PWM配置"""
+        self._enqueue_command("GET_PWM", "查询PWM配置", expect_response=True)
+
     # ---- 校准 ----
     def tare_left(self):
         self._enqueue_command("TARE_LEFT", "左液面校准", expect_response=True)
