@@ -110,10 +110,15 @@ class MainWindow(QMainWindow):
     # ==================== UI 布局 ====================
     def create_right_panel(self) -> QWidget:
         panel = QWidget()
-        layout = QVBoxLayout(panel)
-        layout.setSpacing(15)
+        main_layout = QHBoxLayout(panel)
+        main_layout.setSpacing(10)
 
-        # ---- 底盘连接 ----
+        # ---- 左侧列：底盘连接、地图控制、顺序导航、连接状态 ----
+        left_column = QWidget()
+        left_layout = QVBoxLayout(left_column)
+        left_layout.setSpacing(10)
+
+        # 底盘连接
         conn_group = QGroupBox("底盘连接")
         conn_layout = QFormLayout(conn_group)
         self.edit_ip = QLineEdit()
@@ -132,7 +137,7 @@ class MainWindow(QMainWindow):
         btn_conn_layout.addWidget(self.btn_ping)
         conn_layout.addRow(btn_conn_layout)
 
-        # ---- 地图控制 ----
+        # 地图控制
         map_group = QGroupBox("地图控制")
         map_layout = QVBoxLayout(map_group)
         self.btn_get_map = QPushButton("获取静态地图")
@@ -147,7 +152,7 @@ class MainWindow(QMainWindow):
         map_layout.addWidget(self.btn_show_pose)
         map_group.setLayout(map_layout)
 
-        # ---- 顺序导航 ----
+        # 顺序导航
         navi_group = QGroupBox("顺序导航")
         navi_layout = QVBoxLayout(navi_group)
         self.btn_add_goal = QPushButton("添加目标点")
@@ -164,7 +169,31 @@ class MainWindow(QMainWindow):
         navi_layout.addWidget(self.btn_start_navi)
         navi_layout.addWidget(self.btn_cancel_navi)
 
-        # ---- 左侧喷雾 + 水量 ----
+        # 连接状态
+        status_group = QGroupBox("连接状态")
+        status_layout = QVBoxLayout(status_group)
+        self.label_conn_status = QLabel("未连接")
+        self.label_conn_status.setStyleSheet("color: orange; font-weight: bold;")
+
+        self.speed_label = QLabel("运动速度: --- m/s")
+        self.battery_label = QLabel("电量: --- %")
+
+        status_layout.addWidget(self.label_conn_status)
+        status_layout.addWidget(self.speed_label)
+        status_layout.addWidget(self.battery_label)
+
+        left_layout.addWidget(conn_group)
+        left_layout.addWidget(map_group)
+        left_layout.addWidget(navi_group)
+        left_layout.addWidget(status_group)
+        left_layout.addStretch()
+
+        # ---- 右侧列：喷雾控制、指挥中心 ----
+        right_column = QWidget()
+        right_layout = QVBoxLayout(right_column)
+        right_layout.setSpacing(10)
+
+        # 左侧喷雾 + 水量
         spray_left_group = QGroupBox("左侧喷雾")
         spray_left_layout = QVBoxLayout(spray_left_group)
 
@@ -196,7 +225,7 @@ class MainWindow(QMainWindow):
         spray_left_layout.addLayout(btn_left_layout)
         spray_left_layout.addLayout(calib_left_layout)
 
-        # ---- 右侧喷雾 + 水量 ----
+        # 右侧喷雾 + 水量
         spray_right_group = QGroupBox("右侧喷雾")
         spray_right_layout = QVBoxLayout(spray_right_group)
 
@@ -228,7 +257,7 @@ class MainWindow(QMainWindow):
         spray_right_layout.addLayout(btn_right_layout)
         spray_right_layout.addLayout(calib_right_layout)
 
-        # ---- 指挥中心上报 ----
+        # 指挥中心上报
         report_group = QGroupBox("指挥中心")
         report_layout = QFormLayout(report_group)
         self.edit_server_url = QLineEdit()
@@ -253,28 +282,13 @@ class MainWindow(QMainWindow):
         self.label_report_status.setStyleSheet("color: orange; font-weight: bold;")
         report_layout.addRow("状态:", self.label_report_status)
 
-        # ---- 连接状态 ----
-        status_group = QGroupBox("连接状态")
-        status_layout = QVBoxLayout(status_group)
-        self.label_conn_status = QLabel("未连接")
-        self.label_conn_status.setStyleSheet("color: orange; font-weight: bold;")
+        right_layout.addWidget(spray_left_group)
+        right_layout.addWidget(spray_right_group)
+        right_layout.addWidget(report_group)
+        right_layout.addStretch()
 
-        self.speed_label = QLabel("运动速度: --- m/s")
-        self.battery_label = QLabel("电量: --- %")
-
-        status_layout.addWidget(self.label_conn_status)
-        status_layout.addWidget(self.speed_label)
-        status_layout.addWidget(self.battery_label)
-
-        # ---- 总体布局 ----
-        layout.addWidget(conn_group)
-        layout.addWidget(map_group)
-        layout.addWidget(navi_group)
-        layout.addWidget(spray_left_group)
-        layout.addWidget(spray_right_group)
-        layout.addWidget(report_group)
-        layout.addWidget(status_group)
-        layout.addStretch()
+        main_layout.addWidget(left_column)
+        main_layout.addWidget(right_column)
         return panel
 
     # ==================== 信号连接 ====================
