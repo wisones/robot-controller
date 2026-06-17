@@ -19,7 +19,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("鸡舍消毒机器人控制终端")
-        self.setMinimumSize(1200, 1200)
+        self.setMinimumSize(800, 600)
+        self.resize(1000, 700)
 
         # 窗口图标（兼容打包与源码运行）
         if getattr(sys, 'frozen', False):
