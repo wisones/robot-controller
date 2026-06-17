@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "运行主程序",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/src",
+            "python": "/opt/miniconda3/envs/robotcontrol/bin/python",
+            "env": {
+                "QT_QPA_PLATFORM": "cocoa"
+            }
+        },
+        {
+            "name": "Python: 当前文件",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/src",
+            "python": "/opt/miniconda3/envs/robotcontrol/bin/python",
+            "env": {
+                "QT_QPA_PLATFORM": "cocoa"
+            }
+        }
+    ]
+}

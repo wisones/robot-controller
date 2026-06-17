@@ -1,0 +1,7 @@
+{
+    "python.defaultInterpreterPath": "/opt/miniconda3/envs/robotcontrol/bin/python",
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda",
+    "files.autoSave": "afterDelay",
+    "files.autoSaveDelay": 1000
+}
