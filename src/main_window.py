@@ -4,7 +4,7 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QGroupBox, QLabel, QStatusBar, QSplitter,
-    QLineEdit, QFormLayout, QSlider, QSpinBox, QComboBox
+    QLineEdit, QFormLayout
 )
 from PyQt5.QtGui import QIcon
 from map_widget import MapWidget
@@ -258,57 +258,6 @@ class MainWindow(QMainWindow):
         spray_right_layout.addLayout(btn_right_layout)
         spray_right_layout.addLayout(calib_right_layout)
 
-        # PWM控制
-        pwm_group = QGroupBox("电机PWM控制（提升压力）")
-        pwm_layout = QVBoxLayout(pwm_group)
-
-        # 占空比控制
-        duty_layout = QHBoxLayout()
-        duty_layout.addWidget(QLabel("占空比:"))
-        self.slider_duty = QSlider(Qt.Horizontal)
-        self.slider_duty.setRange(0, 100)
-        self.slider_duty.setValue(80)
-        self.slider_duty.setTickPosition(QSlider.TicksBelow)
-        self.slider_duty.setTickInterval(10)
-        duty_layout.addWidget(self.slider_duty)
-        self.label_duty_value = QLabel("80%")
-        self.label_duty_value.setMinimumWidth(40)
-        duty_layout.addWidget(self.label_duty_value)
-        self.btn_set_duty = QPushButton("设置")
-        self.btn_set_duty.setMinimumHeight(30)
-        duty_layout.addWidget(self.btn_set_duty)
-        pwm_layout.addLayout(duty_layout)
-
-        # 频率控制
-        freq_layout = QHBoxLayout()
-        freq_layout.addWidget(QLabel("频率(Hz):"))
-        self.spin_freq = QSpinBox()
-        self.spin_freq.setRange(100, 10000)
-        self.spin_freq.setValue(1000)
-        self.spin_freq.setSingleStep(100)
-        freq_layout.addWidget(self.spin_freq)
-        self.btn_set_freq = QPushButton("设置")
-        self.btn_set_freq.setMinimumHeight(30)
-        freq_layout.addWidget(self.btn_set_freq)
-        pwm_layout.addLayout(freq_layout)
-
-        # 快速设置按钮
-        quick_layout = QHBoxLayout()
-        self.btn_duty_100 = QPushButton("100%")
-        self.btn_duty_100.setStyleSheet("background-color: #FF5722; color: white; font-weight: bold;")
-        self.btn_duty_90 = QPushButton("90%")
-        self.btn_duty_90.setStyleSheet("background-color: #FF9800; color: white; font-weight: bold;")
-        self.btn_duty_80 = QPushButton("80%")
-        self.btn_duty_80.setStyleSheet("background-color: #FFC107; color: black; font-weight: bold;")
-        quick_layout.addWidget(self.btn_duty_100)
-        quick_layout.addWidget(self.btn_duty_90)
-        quick_layout.addWidget(self.btn_duty_80)
-        pwm_layout.addLayout(quick_layout)
-
-        # PWM状态显示
-        self.label_pwm_status = QLabel("PWM: 未连接")
-        pwm_layout.addWidget(self.label_pwm_status)
-
         # 指挥中心上报
         report_group = QGroupBox("指挥中心")
         report_layout = QFormLayout(report_group)
@@ -336,7 +285,6 @@ class MainWindow(QMainWindow):
 
         right_layout.addWidget(spray_left_group)
         right_layout.addWidget(spray_right_group)
-        right_layout.addWidget(pwm_group)
         right_layout.addWidget(report_group)
         right_layout.addStretch()
 
@@ -365,14 +313,6 @@ class MainWindow(QMainWindow):
         self.btn_right_full.clicked.connect(self.spray_controller.set_right_full)
         self.btn_report_connect.clicked.connect(self.on_report_connect)
         self.btn_report_test.clicked.connect(self.on_report_test)
-
-        # PWM控制连接
-        self.slider_duty.valueChanged.connect(self.on_duty_slider_changed)
-        self.btn_set_duty.clicked.connect(self.on_set_duty)
-        self.btn_set_freq.clicked.connect(self.on_set_freq)
-        self.btn_duty_100.clicked.connect(lambda: self.on_quick_duty(100))
-        self.btn_duty_90.clicked.connect(lambda: self.on_quick_duty(90))
-        self.btn_duty_80.clicked.connect(lambda: self.on_quick_duty(80))
 
     def init_tcp_signals(self):
         self.tcp_client.connected.connect(self.on_tcp_connected)
@@ -741,24 +681,3 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage(f"指挥中心连接失败: {err}")
         self.label_report_status.setText("连接失败")
         self.label_report_status.setStyleSheet("color: red; font-weight: bold;")
-
-    # ==================== PWM控制 ====================
-    def on_duty_slider_changed(self, value):
-        self.label_duty_value.setText(f"{value}%")
-
-    def on_set_duty(self):
-        duty = self.slider_duty.value()
-        self.spray_controller.set_duty(duty)
-        self.status_bar.showMessage(f"已设置占空比: {duty}%")
-        self.label_pwm_status.setText(f"PWM: 占空比{duty}%")
-
-    def on_set_freq(self):
-        freq = self.spin_freq.value()
-        self.spray_controller.set_pwm_frequency(freq)
-        self.status_bar.showMessage(f"已设置PWM频率: {freq}Hz")
-
-    def on_quick_duty(self, duty):
-        self.slider_duty.setValue(duty)
-        self.spray_controller.set_duty(duty)
-        self.status_bar.showMessage(f"已设置占空比: {duty}%")
-        self.label_pwm_status.setText(f"PWM: 占空比{duty}%")
