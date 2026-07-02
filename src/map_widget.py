@@ -174,10 +174,10 @@ class MapWidget(QLabel):
                 sy = offset_y + row * scale
 
                 # 实心圆
-                pen_goal = QPen(QColor(220, 20, 20))
+                pen_goal = QPen(QColor(255, 140, 0))
                 pen_goal.setWidth(3)
                 painter.setPen(pen_goal)
-                painter.setBrush(QBrush(QColor(220, 20, 20, 200)))
+                painter.setBrush(QBrush(QColor(255, 140, 0, 200)))
                 painter.drawEllipse(QPointF(sx, sy), 8, 8)
 
                 # 序号
