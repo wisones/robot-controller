@@ -1,8 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 a = Analysis(
-    ['src\\main.py'],
+    ['src/main.py'],
     pathex=[],
     binaries=[],
     datas=[('resources/images', 'resources/images')],
@@ -22,7 +21,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='main',
+    name='鸡舍消毒机器人控制终端',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -35,5 +34,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['resources\\images\\robot_icon.ico'],
+    icon=['resources/images/robot_icon.png'],
 )
