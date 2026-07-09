@@ -59,6 +59,7 @@ class MainWindow(QMainWindow):
 
         self.map_widget = MapWidget()
         self.map_widget.map_clicked.connect(self.on_map_clicked)
+        self.map_widget.mouse_moved.connect(self.on_mouse_moved)
 
         right_panel = self.create_right_panel()
 
@@ -170,6 +171,28 @@ class MainWindow(QMainWindow):
         navi_layout.addWidget(self.btn_start_navi)
         navi_layout.addWidget(self.btn_cancel_navi)
 
+        # 手动输入坐标
+        coord_group = QGroupBox("坐标输入")
+        coord_layout = QVBoxLayout(coord_group)
+        
+        coord_input_layout = QHBoxLayout()
+        coord_input_layout.addWidget(QLabel("X:"))
+        self.edit_coord_x = QLineEdit()
+        self.edit_coord_x.setPlaceholderText("X坐标")
+        self.edit_coord_x.setMaximumWidth(100)
+        coord_input_layout.addWidget(self.edit_coord_x)
+        
+        coord_input_layout.addWidget(QLabel("Y:"))
+        self.edit_coord_y = QLineEdit()
+        self.edit_coord_y.setPlaceholderText("Y坐标")
+        self.edit_coord_y.setMaximumWidth(100)
+        coord_input_layout.addWidget(self.edit_coord_y)
+        coord_layout.addLayout(coord_input_layout)
+        
+        self.btn_add_coord = QPushButton("添加坐标点")
+        self.btn_add_coord.setMinimumHeight(35)
+        coord_layout.addWidget(self.btn_add_coord)
+
         # 连接状态
         status_group = QGroupBox("连接状态")
         status_layout = QVBoxLayout(status_group)
@@ -186,6 +209,7 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(conn_group)
         left_layout.addWidget(map_group)
         left_layout.addWidget(navi_group)
+        left_layout.addWidget(coord_group)
         left_layout.addWidget(status_group)
         left_layout.addStretch()
 
@@ -303,6 +327,7 @@ class MainWindow(QMainWindow):
         self.btn_clear_goals.clicked.connect(self.on_clear_goals)
         self.btn_start_navi.clicked.connect(self.on_start_navi)
         self.btn_cancel_navi.clicked.connect(self.on_cancel_navi)
+        self.btn_add_coord.clicked.connect(self.on_add_coord_clicked)
         self.btn_spray_left_on.clicked.connect(self.on_spray_left_on)
         self.btn_spray_left_off.clicked.connect(self.on_spray_left_off)
         self.btn_spray_right_on.clicked.connect(self.on_spray_right_on)
@@ -435,6 +460,10 @@ class MainWindow(QMainWindow):
     def on_show_pose(self):
         self.status_bar.showMessage("位置实时显示中")
 
+    def on_mouse_moved(self, wx: float, wy: float):
+        """鼠标悬停时显示世界坐标"""
+        self.status_bar.showMessage(f"鼠标位置: X={wx:.2f}, Y={wy:.2f}")
+
     # ==================== 导航相关 ====================
     def on_add_goal_toggled(self, checked: bool):
         if checked:
@@ -474,6 +503,21 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage("目标点已清空")
         if self.nav_state != 'idle':
             self.on_cancel_navi()
+
+    def on_add_coord_clicked(self):
+        """手动输入坐标添加目标点"""
+        try:
+            wx = float(self.edit_coord_x.text())
+            wy = float(self.edit_coord_y.text())
+        except ValueError:
+            self.status_bar.showMessage("请输入有效的坐标值")
+            return
+        
+        self.goal_points.append((wx, wy))
+        self.map_widget.set_goal_points(self.goal_points)
+        self.edit_coord_x.clear()
+        self.edit_coord_y.clear()
+        self.status_bar.showMessage(f"已添加 {len(self.goal_points)} 个目标点")
 
     def on_start_navi(self):
         if not self.tcp_client.is_connected:

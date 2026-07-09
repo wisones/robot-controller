@@ -7,6 +7,8 @@ from PyQt5.QtGui import QPixmap, QPainter, QColor, QPen, QBrush, QFont
 class MapWidget(QLabel):
     # 信号：鼠标点击时发射像素坐标 (x, y)
     map_clicked = pyqtSignal(int, int)
+    # 信号：鼠标移动时发射世界坐标 (wx, wy)
+    mouse_moved = pyqtSignal(float, float)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -15,6 +17,7 @@ class MapWidget(QLabel):
         self.setText("暂无地图数据\n请先连接机器人并加载地图")
         self.setWordWrap(True)
         self.setScaledContents(False)   # 关闭自动缩放，我们自己绘制
+        self.setMouseTracking(True)     # 启用鼠标跟踪
 
         # ---------- 背景地图 ----------
         self._bg_pixmap = None          # QPixmap 原始地图图片
@@ -43,6 +46,48 @@ class MapWidget(QLabel):
             pos = event.pos()
             self.map_clicked.emit(pos.x(), pos.y())
         super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        """鼠标移动时发射世界坐标"""
+        if self.map_resolution is not None and self._bg_pixmap:
+            pos = event.pos()
+            wx, wy = self._pixel_to_world(pos.x(), pos.y())
+            if wx is not None:
+                self.mouse_moved.emit(wx, wy)
+        super().mouseMoveEvent(event)
+
+    def _pixel_to_world(self, pixel_x, pixel_y):
+        """将像素坐标转换为世界坐标，返回 (wx, wy) 或 (None, None)"""
+        if not self._bg_pixmap or self.map_resolution is None:
+            return None, None
+
+        widget_w = self.width()
+        widget_h = self.height()
+        img_w = self.map_img_width
+        img_h = self.map_img_height
+
+        if img_w <= 0 or img_h <= 0:
+            return None, None
+
+        scale = min(widget_w / img_w, widget_h / img_h)
+        offset_x = (widget_w - img_w * scale) / 2.0
+        offset_y = (widget_h - img_h * scale) / 2.0
+
+        col = (pixel_x - offset_x) / scale
+        row = (pixel_y - offset_y) / scale
+
+        # 检查是否在地图范围内
+        if col < 0 or col >= img_w or row < 0 or row >= img_h:
+            return None, None
+
+        resolution = self.map_resolution
+        origin_x = self.map_origin_x
+        origin_y = self.map_origin_y
+
+        wx = col * resolution + origin_x
+        wy = (img_h - row) * resolution + origin_y
+
+        return wx, wy
 
     # ==================== 外部调用接口 ====================
     def set_map_from_bytes(self, data: bytes):
