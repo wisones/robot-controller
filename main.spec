@@ -34,5 +34,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['resources/images/robot_icon.png'],
+    icon=['resources/images/robot_icon.ico'],
 )
